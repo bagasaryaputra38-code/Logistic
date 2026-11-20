@@ -1,0 +1,495 @@
+{
+  "entities": {
+    "DeliveryReport": {
+      "title": "DeliveryReport",
+      "description": "Laporan harian dan akumulasi bulanan pengiriman tonase untuk cabang Jakarta (JKT) dan Semarang (SMG).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pemilik laporan pengiriman.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "description": "Tanggal laporan dalam format YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "monthKey": {
+          "type": "string",
+          "description": "Kunci bulan dalam format YYYY-MM untuk pengelompokan akumulasi bulanan.",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+        },
+        "dailyJktTotal": {
+          "type": "number",
+          "description": "Total pengiriman harian Jakarta / TODAY Jkt (t)."
+        },
+        "dailySmgTotal": {
+          "type": "number",
+          "description": "Total pengiriman harian Semarang / TODAY Smg (t)."
+        },
+        "jktProjectForming": {
+          "type": "number",
+          "description": "Tonase harian Project Forming Jakarta (t)."
+        },
+        "jktIndustri": {
+          "type": "number",
+          "description": "Tonase harian Industri Jakarta (t)."
+        },
+        "jktIsbsRitel": {
+          "type": "number",
+          "description": "Tonase harian ISBS Ritel Jakarta (t)."
+        },
+        "jktOthers": {
+          "type": "number",
+          "description": "Tonase harian Others Jakarta (t)."
+        },
+        "smgProjectForming": {
+          "type": "number",
+          "description": "Tonase harian Project Forming Semarang (t)."
+        },
+        "smgIndustri": {
+          "type": "number",
+          "description": "Tonase harian Industri Semarang (t)."
+        },
+        "smgIsbsRitel": {
+          "type": "number",
+          "description": "Tonase harian ISBS Ritel Semarang (t)."
+        },
+        "smgOthers": {
+          "type": "number",
+          "description": "Tonase harian Others Semarang (t)."
+        },
+        "mtdMode": {
+          "type": "string",
+          "description": "Mode perhitungan akumulasi bulanan: auto (otomatis dari hari sebelumnya) atau manual (penyesuaian manual).",
+          "enum": ["auto", "manual"],
+          "minLength": 4,
+          "maxLength": 6
+        },
+        "mtdJktProjectForming": {
+          "type": "number",
+          "description": "Akumulasi bulanan Project Forming Jakarta (t)."
+        },
+        "mtdJktIndustri": {
+          "type": "number",
+          "description": "Akumulasi bulanan Industri Jakarta (t)."
+        },
+        "mtdJktIsbsRitel": {
+          "type": "number",
+          "description": "Akumulasi bulanan ISBS Ritel Jakarta (t)."
+        },
+        "mtdJktOthers": {
+          "type": "number",
+          "description": "Akumulasi bulanan Others Jakarta (t)."
+        },
+        "mtdSmgProjectForming": {
+          "type": "number",
+          "description": "Akumulasi bulanan Project Forming Semarang (t)."
+        },
+        "mtdSmgIndustri": {
+          "type": "number",
+          "description": "Akumulasi bulanan Industri Semarang (t)."
+        },
+        "mtdSmgIsbsRitel": {
+          "type": "number",
+          "description": "Akumulasi bulanan ISBS Ritel Semarang (t)."
+        },
+        "mtdSmgOthers": {
+          "type": "number",
+          "description": "Akumulasi bulanan Others Semarang (t)."
+        },
+        "mtdJktTotal": {
+          "type": "number",
+          "description": "Total akumulasi bulanan Jakarta (t)."
+        },
+        "mtdSmgTotal": {
+          "type": "number",
+          "description": "Total akumulasi bulanan Semarang (t)."
+        },
+        "mtdCombinedTotal": {
+          "type": "number",
+          "description": "Total Delv Jkt&Smg akumulasi bulanan (t)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan tambahan pengiriman harian.",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen di server."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan dokumen di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "date",
+        "monthKey",
+        "dailyJktTotal",
+        "dailySmgTotal",
+        "jktProjectForming",
+        "jktIndustri",
+        "jktIsbsRitel",
+        "jktOthers",
+        "smgProjectForming",
+        "smgIndustri",
+        "smgIsbsRitel",
+        "smgOthers",
+        "mtdMode",
+        "mtdJktProjectForming",
+        "mtdJktIndustri",
+        "mtdJktIsbsRitel",
+        "mtdJktOthers",
+        "mtdSmgProjectForming",
+        "mtdSmgIndustri",
+        "mtdSmgIsbsRitel",
+        "mtdSmgOthers",
+        "mtdJktTotal",
+        "mtdSmgTotal",
+        "mtdCombinedTotal",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SuratJalan": {
+      "title": "SuratJalan",
+      "description": "Catatan Data Surat Jalan (Tanggal, No Delivery Order, dan Nama Vendor).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pemilik data surat jalan.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "no": {
+          "type": "integer",
+          "description": "Nomor urut surat jalan per tanggal (selalu dimulai kembali dari 1 saat pergantian tanggal)."
+        },
+        "tanggal": {
+          "type": "string",
+          "description": "Tanggal surat jalan dalam format YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "noDO": {
+          "type": "string",
+          "description": "Nomor Delivery Order.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "vendor": {
+          "type": "string",
+          "description": "Nama vendor pengiriman.",
+          "enum": [
+            "Nur Jaya",
+            "Saudara Makmur",
+            "Adil Jaya",
+            "Satya Ragam (SR)",
+            "Peta Patria",
+            "Sejahtera Pelita Mitra (SPM)",
+            "Trikusuma Jaya Perkasa (TJP)",
+            "Lainnya"
+          ],
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "customVendor": {
+          "type": "string",
+          "description": "Nama vendor khusus apabila memilih Lainnya.",
+          "maxLength": 100
+        },
+        "dokumen": {
+          "type": "string",
+          "description": "Status dokumen surat jalan balik (misal TERKIRIM, PROSES, BELUM KEMBALI).",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen di server."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan dokumen di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "no",
+        "tanggal",
+        "noDO",
+        "vendor",
+        "customVendor",
+        "dokumen",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OtpRequest": {
+      "title": "OtpRequest",
+      "description": "Permintaan akses OTP dari pengguna kepada administrator (bagasaryaputra38@gmail.com).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna pemohon OTP.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Alamat email akun pemohon.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nama lengkap pemohon.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Nomor HP / WhatsApp pemohon untuk menerima OTP dari administrator.",
+          "minLength": 6,
+          "maxLength": 30
+        },
+        "note": {
+          "type": "string",
+          "description": "Catatan atau divisi pemohon.",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "description": "Status alur permintaan OTP: pending, otp_issued, verified, atau rejected.",
+          "enum": ["pending", "otp_issued", "verified", "rejected"],
+          "minLength": 7,
+          "maxLength": 10
+        },
+        "submittedOtp": {
+          "type": "string",
+          "description": "Kode OTP 6 digit yang dimasukkan pengguna saat verifikasi.",
+          "maxLength": 6,
+          "pattern": "^(|[0-9]{6})$"
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Email administrator yang menerbitkan atau memproses OTP.",
+          "maxLength": 160
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu kedaluwarsa kode OTP yang diterbitkan administrator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan permintaan OTP di server."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan permintaan OTP di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "email",
+        "displayName",
+        "phone",
+        "note",
+        "status",
+        "submittedOtp",
+        "approvedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OtpSecret": {
+      "title": "OtpSecret",
+      "description": "Kode OTP rahasia 6 digit yang hanya dapat dibaca dan ditulis oleh administrator.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna target OTP.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "otpCode": {
+          "type": "string",
+          "description": "Kode OTP 6 digit yang diterbitkan administrator.",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[0-9]{6}$"
+        },
+        "issuedBy": {
+          "type": "string",
+          "description": "Email administrator penerbit OTP.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu kedaluwarsa kode OTP."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu penerbitan/pembaruan kode OTP di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "otpCode",
+        "issuedBy",
+        "expiresAt",
+        "updatedAt"
+      ]
+    },
+    "DriverLog": {
+      "title": "DriverLog",
+      "description": "Catatan kedatangan dan keberangkatan supir & kendaraan logistik dengan nomor urut reset per tanggal.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna yang pertama kali mencatat data supir.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "no": {
+          "type": "integer",
+          "description": "Nomor urut per tanggal input (selalu dimulai kembali dari 1 saat ganti tanggal)."
+        },
+        "tanggal": {
+          "type": "string",
+          "description": "Tanggal pencatatan dalam format YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "jamMasuk": {
+          "type": "string",
+          "description": "Jam masuk kendaraan/supir dalam format HH:mm.",
+          "maxLength": 5,
+          "pattern": "^(|([01]\\d|2[0-3]):[0-5]\\d)$"
+        },
+        "jamKeluar": {
+          "type": "string",
+          "description": "Jam keluar kendaraan/supir dalam format HH:mm.",
+          "maxLength": 5,
+          "pattern": "^(|([01]\\d|2[0-3]):[0-5]\\d)$"
+        },
+        "noMobil": {
+          "type": "string",
+          "description": "Nomor polisi / plat mobil kendaraan.",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "supir": {
+          "type": "string",
+          "description": "Nama supir kendaraan.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "jenisKendaraan": {
+          "type": "string",
+          "description": "Jenis kendaraan (misal CDD, CDE, Fuso, Tronton, Wingbox).",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "transporter": {
+          "type": "string",
+          "description": "Nama perusahaan transporter atau vendor angkutan.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "keterangan": {
+          "type": "string",
+          "description": "Keterangan tambahan operasional supir.",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen di server."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan dokumen di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "no",
+        "tanggal",
+        "jamMasuk",
+        "jamKeluar",
+        "noMobil",
+        "supir",
+        "jenisKendaraan",
+        "transporter",
+        "keterangan",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/delivery_reports/{reportId}": {
+      "schema": {
+        "$ref": "#/entities/DeliveryReport"
+      },
+      "description": "Koleksi laporan pengiriman harian bersama untuk seluruh akun yang telah terverifikasi OTP administrator."
+    },
+    "/surat_jalan/{entryId}": {
+      "schema": {
+        "$ref": "#/entities/SuratJalan"
+      },
+      "description": "Koleksi data surat jalan dan nomor Delivery Order bersama untuk seluruh akun yang telah terverifikasi OTP administrator."
+    },
+    "/driver_logs/{entryId}": {
+      "schema": {
+        "$ref": "#/entities/DriverLog"
+      },
+      "description": "Koleksi data input supir dan kendaraan bersama untuk seluruh akun terverifikasi."
+    },
+    "/otp_requests/{userId}": {
+      "schema": {
+        "$ref": "#/entities/OtpRequest"
+      },
+      "description": "Koleksi permintaan OTP pengguna yang menunggu persetujuan dan penerbitan OTP oleh administrator."
+    },
+    "/otp_secrets/{userId}": {
+      "schema": {
+        "$ref": "#/entities/OtpSecret"
+      },
+      "description": "Koleksi kode OTP rahasia milik administrator untuk validasi sisi server."
+    }
+  }
+}

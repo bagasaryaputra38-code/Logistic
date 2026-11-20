@@ -1,0 +1,8 @@
+{
+  "name": "Rekap Delv JKT & SMG",
+  "description": "LOGO COIL DAN FORMING JADI SATU\n\n\n",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

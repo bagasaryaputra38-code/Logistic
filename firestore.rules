@@ -1,0 +1,375 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.get('email_verified', false) == true &&
+        request.auth.token.get('email', '') is string &&
+        request.auth.token.get('email', '').lower() == 'bagasaryaputra38@gmail.com';
+    }
+
+    function hasVerifiedAdminOtp() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/otp_requests/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/otp_requests/$(request.auth.uid)).data.status == 'verified';
+    }
+
+    function isVerifiedUser() {
+      return isAdmin() || hasVerifiedAdminOtp();
+    }
+
+    function isValidDailyTon(val) {
+      return val is number && val >= 0 && val <= 1000000;
+    }
+
+    function isValidMtdTon(val) {
+      return val is number && val >= 0 && val <= 40000000;
+    }
+
+    function isValidDeliveryReport(data) {
+      return data.keys().hasAll([
+        'ownerId', 'date', 'monthKey',
+        'dailyJktTotal', 'dailySmgTotal',
+        'jktProjectForming', 'jktIndustri', 'jktIsbsRitel', 'jktOthers',
+        'smgProjectForming', 'smgIndustri', 'smgIsbsRitel', 'smgOthers',
+        'mtdMode',
+        'mtdJktProjectForming', 'mtdJktIndustri', 'mtdJktIsbsRitel', 'mtdJktOthers',
+        'mtdSmgProjectForming', 'mtdSmgIndustri', 'mtdSmgIsbsRitel', 'mtdSmgOthers',
+        'mtdJktTotal', 'mtdSmgTotal', 'mtdCombinedTotal',
+        'notes', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'date', 'monthKey',
+        'dailyJktTotal', 'dailySmgTotal',
+        'jktProjectForming', 'jktIndustri', 'jktIsbsRitel', 'jktOthers',
+        'smgProjectForming', 'smgIndustri', 'smgIsbsRitel', 'smgOthers',
+        'mtdMode',
+        'mtdJktProjectForming', 'mtdJktIndustri', 'mtdJktIsbsRitel', 'mtdJktOthers',
+        'mtdSmgProjectForming', 'mtdSmgIndustri', 'mtdSmgIsbsRitel', 'mtdSmgOthers',
+        'mtdJktTotal', 'mtdSmgTotal', 'mtdCombinedTotal',
+        'notes', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
+      data.monthKey is string && data.monthKey.size() == 7 && data.monthKey.matches('^\\d{4}-(0[1-9]|1[0-2])$') &&
+      data.date[0:7] == data.monthKey &&
+      isValidDailyTon(data.dailyJktTotal) &&
+      isValidDailyTon(data.dailySmgTotal) &&
+      isValidDailyTon(data.jktProjectForming) &&
+      isValidDailyTon(data.jktIndustri) &&
+      isValidDailyTon(data.jktIsbsRitel) &&
+      isValidDailyTon(data.jktOthers) &&
+      isValidDailyTon(data.smgProjectForming) &&
+      isValidDailyTon(data.smgIndustri) &&
+      isValidDailyTon(data.smgIsbsRitel) &&
+      isValidDailyTon(data.smgOthers) &&
+      data.mtdMode is string && (data.mtdMode == 'auto' || data.mtdMode == 'manual') &&
+      isValidMtdTon(data.mtdJktProjectForming) &&
+      isValidMtdTon(data.mtdJktIndustri) &&
+      isValidMtdTon(data.mtdJktIsbsRitel) &&
+      isValidMtdTon(data.mtdJktOthers) &&
+      isValidMtdTon(data.mtdSmgProjectForming) &&
+      isValidMtdTon(data.mtdSmgIndustri) &&
+      isValidMtdTon(data.mtdSmgIsbsRitel) &&
+      isValidMtdTon(data.mtdSmgOthers) &&
+      isValidMtdTon(data.mtdJktTotal) &&
+      isValidMtdTon(data.mtdSmgTotal) &&
+      isValidMtdTon(data.mtdCombinedTotal) &&
+      data.notes is string && data.notes.size() <= 500 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidVendor(v) {
+      return v is string && v.size() >= 1 && v.size() <= 100 && (
+        v == 'Nur Jaya' ||
+        v == 'Saudara Makmur' ||
+        v == 'Adil Jaya' ||
+        v == 'Satya Ragam (SR)' ||
+        v == 'Peta Patria' ||
+        v == 'Sejahtera Pelita Mitra (SPM)' ||
+        v == 'Trikusuma Jaya Perkasa (TJP)' ||
+        v == 'Lainnya'
+      );
+    }
+
+    function isValidSuratJalan(data) {
+      return data.keys().hasAll([
+        'ownerId', 'no', 'tanggal', 'noDO', 'vendor', 'customVendor', 'dokumen', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'no', 'tanggal', 'noDO', 'vendor', 'customVendor', 'dokumen', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.no is int && data.no >= 1 && data.no <= 100000 &&
+      data.tanggal is string && data.tanggal.size() == 10 && data.tanggal.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
+      data.noDO is string && data.noDO.size() >= 1 && data.noDO.size() <= 100 &&
+      isValidVendor(data.vendor) &&
+      data.customVendor is string && data.customVendor.size() <= 100 &&
+      data.dokumen is string && data.dokumen.size() >= 1 && data.dokumen.size() <= 50 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidDriverLog(data) {
+      return data.keys().hasAll([
+        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+        'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+        'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
+        'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.no is int && data.no >= 1 && data.no <= 100000 &&
+      data.tanggal is string && data.tanggal.size() == 10 && data.tanggal.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
+      data.jamMasuk is string && data.jamMasuk.size() <= 5 && data.jamMasuk.matches('^(|([01]\\d|2[0-3]):[0-5]\\d)$') &&
+      data.jamKeluar is string && data.jamKeluar.size() <= 5 && data.jamKeluar.matches('^(|([01]\\d|2[0-3]):[0-5]\\d)$') &&
+      data.noMobil is string && data.noMobil.size() >= 1 && data.noMobil.size() <= 30 &&
+      data.supir is string && data.supir.size() >= 1 && data.supir.size() <= 100 &&
+      data.jenisKendaraan is string && data.jenisKendaraan.size() >= 1 && data.jenisKendaraan.size() <= 100 &&
+      data.transporter is string && data.transporter.size() >= 1 && data.transporter.size() <= 100 &&
+      data.keterangan is string && data.keterangan.size() <= 300 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidOtpStatus(s) {
+      return s is string && (
+        s == 'pending' ||
+        s == 'otp_issued' ||
+        s == 'verified' ||
+        s == 'rejected'
+      );
+    }
+
+    function isValidOtpRequest(data) {
+      return data.keys().hasAll([
+        'ownerId', 'email', 'displayName', 'phone', 'note',
+        'status', 'submittedOtp', 'approvedBy', 'expiresAt',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'email', 'displayName', 'phone', 'note',
+        'status', 'submittedOtp', 'approvedBy', 'expiresAt',
+        'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+      data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 30 &&
+      data.note is string && data.note.size() <= 200 &&
+      isValidOtpStatus(data.status) &&
+      data.submittedOtp is string && data.submittedOtp.size() <= 6 && data.submittedOtp.matches('^(|[0-9]{6})$') &&
+      data.approvedBy is string && data.approvedBy.size() <= 160 &&
+      (data.expiresAt == null || data.expiresAt is timestamp) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidOtpSecret(data) {
+      return data.keys().hasAll([
+        'ownerId', 'otpCode', 'issuedBy', 'expiresAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'otpCode', 'issuedBy', 'expiresAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.otpCode is string && data.otpCode.size() == 6 && data.otpCode.matches('^[0-9]{6}$') &&
+      data.issuedBy is string && data.issuedBy.size() >= 3 && data.issuedBy.size() <= 160 &&
+      data.expiresAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidOtpSecretMatch(userId, code) {
+      return code is string &&
+        code.size() == 6 &&
+        code.matches('^[0-9]{6}$') &&
+        exists(/databases/$(database)/documents/otp_secrets/$(userId)) &&
+        get(/databases/$(database)/documents/otp_secrets/$(userId)).data.otpCode == code &&
+        get(/databases/$(database)/documents/otp_secrets/$(userId)).data.expiresAt > request.time;
+    }
+
+    match /otp_requests/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (
+        request.auth.uid == userId || isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidOtpRequest(incoming()) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().submittedOtp == '' &&
+        incoming().approvedBy == '' &&
+        incoming().expiresAt == null &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId) &&
+        isValidOtpRequest(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (
+            isSignedIn() &&
+            request.auth.uid == userId &&
+            incoming().status == 'pending' &&
+            incoming().submittedOtp == '' &&
+            incoming().approvedBy == '' &&
+            incoming().expiresAt == null &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'email', 'displayName', 'phone', 'note',
+              'status', 'submittedOtp', 'approvedBy', 'expiresAt', 'updatedAt'
+            ])
+          ) ||
+          (
+            isSignedIn() &&
+            request.auth.uid == userId &&
+            existing().status == 'otp_issued' &&
+            incoming().status == 'verified' &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'submittedOtp', 'updatedAt'
+            ]) &&
+            isValidOtpSecretMatch(userId, incoming().submittedOtp)
+          ) ||
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'submittedOtp', 'approvedBy', 'expiresAt', 'updatedAt'
+            ]) &&
+            (
+              incoming().status != 'otp_issued' || (
+                existsAfter(/databases/$(database)/documents/otp_secrets/$(userId)) &&
+                getAfter(/databases/$(database)/documents/otp_secrets/$(userId)).data.ownerId == userId
+              )
+            )
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /otp_secrets/{userId} {
+      allow get: if isAdmin() && isValidId(userId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(userId) &&
+        isValidOtpSecret(incoming()) &&
+        incoming().ownerId == userId &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAdmin() &&
+        isValidId(userId) &&
+        isValidOtpSecret(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'otpCode', 'issuedBy', 'expiresAt', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /delivery_reports/{reportId} {
+      allow get: if isVerifiedUser() && isValidId(reportId);
+
+      allow list: if isVerifiedUser();
+
+      allow create: if isVerifiedUser() &&
+        isValidId(reportId) &&
+        isValidDeliveryReport(incoming()) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if false;
+    }
+
+    match /surat_jalan/{entryId} {
+      allow get: if isVerifiedUser() && isValidId(entryId);
+
+      allow list: if isVerifiedUser();
+
+      allow create: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidSuratJalan(incoming()) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidSuratJalan(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'no', 'tanggal', 'noDO', 'vendor', 'customVendor', 'dokumen', 'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() && isValidId(entryId);
+    }
+
+    match /driver_logs/{entryId} {
+      allow get: if isVerifiedUser() && isValidId(entryId);
+
+      allow list: if isVerifiedUser();
+
+      allow create: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidDriverLog(incoming()) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidDriverLog(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+          'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() && isValidId(entryId);
+    }
+  }
+}
