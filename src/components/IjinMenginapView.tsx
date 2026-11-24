@@ -363,7 +363,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-0">
       {/* Top Header Strip */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print">
         <div className="space-y-1">
@@ -401,7 +401,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
       </div>
 
       {/* Main Two-Column Grid: Input Form + Official Letter Preview */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start print:block print:space-y-0">
         {/* Form Card (Hidden when printing) */}
         <section className="xl:col-span-6 bg-white border border-slate-200 rounded-xl overflow-hidden no-print">
           <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
@@ -800,7 +800,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
         </section>
 
         {/* Official Letter Live Preview & Printable Sheet */}
-        <section className="xl:col-span-6 space-y-3">
+        <section className="xl:col-span-6 space-y-3 print:w-full print:max-w-none print:space-y-0">
           <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 no-print">
             <div className="text-xs font-semibold text-slate-700">
               {previewEntry

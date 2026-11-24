@@ -20,11 +20,18 @@
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 18mm 18mm 18mm 18mm;
+    size: auto;
+    margin: 15mm 16mm;
   }
+  html,
   body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background-color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .no-print {
     display: none !important;
@@ -34,10 +41,16 @@
   }
   .print-main-wrapper {
     padding-left: 0 !important;
+    width: 100% !important;
   }
   .print-main-content {
     padding: 0 !important;
+    margin: 0 !important;
     max-width: 100% !important;
+    width: 100% !important;
+  }
+  .print-main-content > * {
+    margin-top: 0 !important;
   }
   .print-container {
     box-shadow: none !important;
@@ -46,11 +59,28 @@
     margin: 0 !important;
   }
   .ijin-menginap-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
     border: none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
+    padding: 4mm 2mm 0 2mm !important;
     margin: 0 !important;
     box-shadow: none !important;
     color: #000000 !important;
+    font-family: "Times New Roman", Times, serif !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .ijin-menginap-sheet h1 {
+    font-size: 14pt !important;
+    line-height: 1.3 !important;
+  }
+  .ijin-menginap-sheet p,
+  .ijin-menginap-sheet div,
+  .ijin-menginap-sheet span,
+  .ijin-menginap-sheet li {
+    font-size: 12pt !important;
   }
 }
