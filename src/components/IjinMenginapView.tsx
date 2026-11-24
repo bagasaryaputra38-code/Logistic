@@ -838,12 +838,12 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
             </h1>
 
             {/* Intro */}
-            <p className="mt-8 text-sm leading-relaxed">
+            <p className="mt-8 print:mt-6 text-sm leading-relaxed">
               Dengan ini mohon di berikan ijin menginap untuk :
             </p>
 
             {/* Fields */}
-            <div className="mt-5 space-y-3.5 text-sm">
+            <div className="mt-5 print:mt-4 space-y-3.5 print:space-y-2.5 text-sm">
               <div className="grid grid-cols-[150px_16px_1fr] sm:grid-cols-[175px_20px_1fr] items-baseline gap-y-1">
                 <span>Nama Supir</span>
                 <span>:</span>
@@ -889,13 +889,13 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
             </div>
 
             {/* Closing */}
-            <p className="mt-8 text-sm leading-relaxed">
+            <p className="mt-8 print:mt-6 text-sm leading-relaxed">
               Demikian permohonan ini kami buat agar dimaklumi dan diucapkan terima kasih atas
               kerjasamanya.
             </p>
 
             {/* Place & Date */}
-            <p className="mt-7 text-sm">
+            <p className="mt-7 print:mt-5 text-sm">
               {activeLetterData.tempatSurat || 'Bekasi'},{' '}
               {activeLetterData.tanggalSurat
                 ? formatFormalLetterDate(activeLetterData.tanggalSurat)
@@ -903,11 +903,11 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
             </p>
 
             {/* Signature Columns */}
-            <div className="mt-4 grid grid-cols-3 gap-4 text-xs sm:text-sm text-center">
+            <div className="mt-4 print:mt-3 grid grid-cols-3 gap-4 text-xs sm:text-sm text-center">
               <div className="flex flex-col items-center">
                 <div>Pemohon,</div>
                 <div className="mt-1">Warehouse Div</div>
-                <div className="h-20" />
+                <div className="h-20 print:h-16" />
                 <div className="font-normal">
                   ({activeLetterData.namaPemohon || '………………'})
                 </div>
@@ -916,7 +916,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
               <div className="flex flex-col items-center">
                 <div>Diketahui oleh,</div>
                 <div className="mt-1">Sales &amp; Marketing Div</div>
-                <div className="h-20" />
+                <div className="h-20 print:h-16" />
                 <div className="font-normal">
                   ({activeLetterData.namaDiketahui || '……………….'})
                 </div>
@@ -925,7 +925,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
               <div className="flex flex-col items-center">
                 <div>Disetujui oleh,</div>
                 <div className="mt-1">HA &amp; GS Div.</div>
-                <div className="h-20" />
+                <div className="h-20 print:h-16" />
                 <div className="font-normal">
                   ({activeLetterData.namaDisetujui || '………….….'})
                 </div>
@@ -933,7 +933,7 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
             </div>
 
             {/* CC Footer */}
-            <div className="mt-12 text-xs sm:text-sm leading-relaxed">
+            <div className="mt-12 print:mt-8 text-xs sm:text-sm leading-relaxed">
               <div>Tembusan :</div>
               <ol className="list-decimal list-inside mt-1 space-y-0.5 pl-1">
                 <li>Pemohon</li>

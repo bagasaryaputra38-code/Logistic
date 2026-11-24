@@ -784,7 +784,7 @@ function MainApp() {
   const accountContact = user.email || user.phoneNumber || '';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex text-slate-900">
+    <div className="min-h-screen bg-slate-50 flex text-slate-900 print:block print:min-h-0 print:bg-white">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-slate-200 no-print">
         <div className="h-16 px-5 flex items-center gap-2.5 border-b border-slate-200">
@@ -950,7 +950,7 @@ function MainApp() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0 print-main-wrapper">
+      <div className="flex-1 lg:pl-64 flex flex-col min-w-0 print-main-wrapper print:block">
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 sticky top-0 z-30 no-print">
           <div className="flex items-center gap-3 min-w-0">
@@ -995,7 +995,7 @@ function MainApp() {
         </header>
 
         {/* Main Viewport */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-5 print-main-content">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-5 print-main-content print:block print:space-y-0">
           {authError && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="break-all">{authError}</span>
