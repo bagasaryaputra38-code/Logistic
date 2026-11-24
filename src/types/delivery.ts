@@ -243,6 +243,45 @@ export interface DriverLogFormState {
   keterangan: string;
 }
 
+export interface IjinMenginapPayload {
+  ownerId: string;
+  no: number;
+  tanggalSurat: string;
+  tempatSurat: string;
+  namaSupir: string;
+  transporter: string;
+  noPolisi: string;
+  tanggalMenginap: string;
+  tanggalMenginapSampai: string;
+  alasanMenginap: string;
+  namaPemohon: string;
+  namaDiketahui: string;
+  namaDisetujui: string;
+}
+
+export interface IjinMenginapEntry extends IjinMenginapPayload {
+  id: string;
+  createdAtMs?: number;
+  updatedAtMs?: number;
+  isLocal?: boolean;
+}
+
+export interface IjinMenginapFormState {
+  tanggalSurat: string;
+  tempatSurat: string;
+  namaSupir: string;
+  transporter: string;
+  noPolisi: string;
+  tanggalMenginap: string;
+  tanggalMenginapSampai: string;
+  alasanMenginap: string;
+  namaPemohon: string;
+  namaDiketahui: string;
+  namaDisetujui: string;
+}
+
+export const MONTHLY_TARGET_TON = 10000;
+
 export const VALIDATION_LIMITS = {
   MAX_DAILY_TON: 1000000,
   MAX_MTD_TON: 40000000,
@@ -257,11 +296,15 @@ export const VALIDATION_LIMITS = {
   MAX_OTP_NOTE_LENGTH: 200,
   MAX_DRIVER_NO: 100000,
   MAX_SURAT_JALAN_NO: 100000,
+  MAX_IJIN_MENGINAP_NO: 100000,
   MAX_NO_MOBIL_LENGTH: 30,
   MAX_SUPIR_LENGTH: 100,
   MAX_JENIS_KENDARAAN_LENGTH: 100,
   MAX_TRANSPORTER_LENGTH: 100,
   MAX_KETERANGAN_LENGTH: 300,
+  MAX_TEMPAT_SURAT_LENGTH: 60,
+  MAX_ALASAN_MENGINAP_LENGTH: 300,
+  MAX_PENANDATANGAN_LENGTH: 80,
   OTP_CODE_LENGTH: 6,
   OTP_CODE_REGEX: /^[0-9]{6}$/,
   TIME_REGEX: /^([01]\d|2[0-3]):[0-5]\d$/,

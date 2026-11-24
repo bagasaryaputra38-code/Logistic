@@ -160,6 +160,36 @@ service cloud.firestore {
       data.updatedAt is timestamp;
     }
 
+    function isValidIjinMenginap(data) {
+      return data.keys().hasAll([
+        'ownerId', 'no', 'tanggalSurat', 'tempatSurat',
+        'namaSupir', 'transporter', 'noPolisi', 'tanggalMenginap', 'tanggalMenginapSampai', 'alasanMenginap',
+        'namaPemohon', 'namaDiketahui', 'namaDisetujui',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'no', 'tanggalSurat', 'tempatSurat',
+        'namaSupir', 'transporter', 'noPolisi', 'tanggalMenginap', 'tanggalMenginapSampai', 'alasanMenginap',
+        'namaPemohon', 'namaDiketahui', 'namaDisetujui',
+        'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.no is int && data.no >= 1 && data.no <= 100000 &&
+      data.tanggalSurat is string && data.tanggalSurat.size() == 10 && data.tanggalSurat.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
+      data.tempatSurat is string && data.tempatSurat.size() >= 1 && data.tempatSurat.size() <= 60 &&
+      data.namaSupir is string && data.namaSupir.size() >= 1 && data.namaSupir.size() <= 100 &&
+      data.transporter is string && data.transporter.size() >= 1 && data.transporter.size() <= 100 &&
+      data.noPolisi is string && data.noPolisi.size() >= 1 && data.noPolisi.size() <= 30 &&
+      data.tanggalMenginap is string && data.tanggalMenginap.size() == 10 && data.tanggalMenginap.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
+      data.tanggalMenginapSampai is string && data.tanggalMenginapSampai.size() <= 10 && data.tanggalMenginapSampai.matches('^(|\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]))$') &&
+      data.alasanMenginap is string && data.alasanMenginap.size() >= 1 && data.alasanMenginap.size() <= 300 &&
+      data.namaPemohon is string && data.namaPemohon.size() <= 80 &&
+      data.namaDiketahui is string && data.namaDiketahui.size() <= 80 &&
+      data.namaDisetujui is string && data.namaDisetujui.size() <= 80 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
     function isValidOtpStatus(s) {
       return s is string && (
         s == 'pending' ||
@@ -366,6 +396,34 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly([
           'no', 'tanggal', 'jamMasuk', 'jamKeluar',
           'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() && isValidId(entryId);
+    }
+
+    match /ijin_menginap/{entryId} {
+      allow get: if isVerifiedUser() && isValidId(entryId);
+
+      allow list: if isVerifiedUser();
+
+      allow create: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidIjinMenginap(incoming()) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(entryId) &&
+        isValidIjinMenginap(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'no', 'tanggalSurat', 'tempatSurat',
+          'namaSupir', 'transporter', 'noPolisi', 'tanggalMenginap', 'tanggalMenginapSampai', 'alasanMenginap',
+          'namaPemohon', 'namaDiketahui', 'namaDisetujui',
           'updatedAt'
         ]);
 

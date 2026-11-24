@@ -9,7 +9,7 @@ import {
   Plus,
   Printer,
 } from 'lucide-react';
-import { DeliveryReport } from '../types/delivery';
+import { DeliveryReport, MONTHLY_TARGET_TON } from '../types/delivery';
 import {
   computeDailyTotals,
   computeSegmentRows,
@@ -21,6 +21,7 @@ import {
   getMtdVariance,
   roundTon,
 } from '../utils/deliveryCalculations';
+import { MonthlyTargetChart } from './MonthlyTargetChart';
 
 interface RecapViewProps {
   reports: DeliveryReport[];
@@ -131,6 +132,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
   const smgDailyPct = daily.combined > 0 ? (daily.smg / daily.combined) * 100 : 0;
   const jktMtdPct = mtdCombinedTotal > 0 ? (selectedReport.mtdJktTotal / mtdCombinedTotal) * 100 : 0;
   const smgMtdPct = mtdCombinedTotal > 0 ? (selectedReport.mtdSmgTotal / mtdCombinedTotal) * 100 : 0;
+  const targetAchievementPct = (mtdCombinedTotal / MONTHLY_TARGET_TON) * 100;
 
   return (
     <div className="space-y-6">
@@ -274,13 +276,24 @@ export const RecapView: React.FC<RecapViewProps> = ({
             <span className="text-3xl font-bold font-mono tabular-nums text-white">
               {formatNumber(mtdCombinedTotal)}
             </span>
-            <span className="text-sm font-medium text-slate-300">Ton</span>
+            <span className="text-sm font-medium text-slate-300">
+              / {formatNumber(MONTHLY_TARGET_TON)} Ton
+            </span>
           </div>
           <div className="text-xs text-slate-300 font-mono tabular-nums">
-            JKT {jktMtdPct.toFixed(1)}% · SMG {smgMtdPct.toFixed(1)}%
+            {targetAchievementPct.toFixed(1)}% target · JKT {jktMtdPct.toFixed(1)}% · SMG {smgMtdPct.toFixed(1)}%
           </div>
         </div>
       </div>
+
+      {/* Daily Achievement Trajectory Toward 10.000 Ton Monthly Target */}
+      <MonthlyTargetChart
+        reports={reports}
+        monthKey={selectedReport.monthKey}
+        upToDate={selectedReport.date}
+        highlightDate={selectedReport.date}
+        onSelectDate={onSelectDate}
+      />
 
       {/* Main Rekapitulasi Otomatis Table */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden print-container">

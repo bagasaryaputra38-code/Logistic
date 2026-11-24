@@ -1,6 +1,7 @@
 import {
   DeliveryFormState,
   DeliveryReport,
+  MONTHLY_TARGET_TON,
   SEGMENTS,
   SegmentKey,
 } from '../types/delivery';
@@ -306,6 +307,117 @@ export function findPreviousMonthReport(
     .filter((r) => r.monthKey === monthKey && r.date < targetDate)
     .sort((a, b) => b.date.localeCompare(a.date));
   return candidates[0] ?? null;
+}
+
+export function getDaysInMonth(monthKey: string): number {
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) return 30;
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Date(year, month, 0).getDate();
+}
+
+export interface MonthlyTargetPoint {
+  date: string;
+  day: number;
+  dailyTon: number;
+  dailyJkt: number;
+  dailySmg: number;
+  mtdTon: number;
+  idealMtdTon: number;
+  paceDiffTon: number;
+  achievementPct: number;
+}
+
+export interface MonthlyTargetSummary {
+  monthKey: string;
+  targetTon: number;
+  daysInMonth: number;
+  idealDailyTon: number;
+  actualMtdTon: number;
+  achievementPct: number;
+  remainingTon: number;
+  surplusTon: number;
+  isTargetReached: boolean;
+  latestDay: number;
+  latestDate: string | null;
+  remainingDays: number;
+  requiredDailyAvgTon: number;
+  idealMtdAtLatestDay: number;
+  paceVarianceTon: number;
+  points: MonthlyTargetPoint[];
+}
+
+export function computeMonthlyTargetProgress(
+  reports: DeliveryReport[],
+  monthKey: string,
+  upToDate?: string,
+  targetTon: number = MONTHLY_TARGET_TON
+): MonthlyTargetSummary {
+  const daysInMonth = getDaysInMonth(monthKey);
+  const idealDailyTon = roundTon(targetTon / daysInMonth);
+
+  const monthReports = [...reports]
+    .filter((r) => r.monthKey === monthKey && (!upToDate || r.date <= upToDate))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const points: MonthlyTargetPoint[] = monthReports.map((r) => {
+    const day = Number(r.date.slice(8, 10)) || 1;
+    const daily = computeDailyTotals(r);
+    const mtdTon = roundTon(
+      r.mtdCombinedTotal !== undefined
+        ? r.mtdCombinedTotal
+        : r.mtdJktTotal + r.mtdSmgTotal
+    );
+    const idealMtdTon = roundTon((targetTon / daysInMonth) * day);
+    const paceDiffTon = Math.round((mtdTon - idealMtdTon) * 100) / 100;
+    const achievementPct = targetTon > 0 ? (mtdTon / targetTon) * 100 : 0;
+
+    return {
+      date: r.date,
+      day,
+      dailyTon: daily.combined,
+      dailyJkt: daily.jkt,
+      dailySmg: daily.smg,
+      mtdTon,
+      idealMtdTon,
+      paceDiffTon,
+      achievementPct,
+    };
+  });
+
+  const latestPoint = points.length > 0 ? points[points.length - 1] : null;
+  const actualMtdTon = latestPoint ? latestPoint.mtdTon : 0;
+  const achievementPct = targetTon > 0 ? (actualMtdTon / targetTon) * 100 : 0;
+  const remainingTon = roundTon(Math.max(targetTon - actualMtdTon, 0));
+  const surplusTon = roundTon(Math.max(actualMtdTon - targetTon, 0));
+  const isTargetReached = actualMtdTon >= targetTon;
+  const latestDay = latestPoint ? latestPoint.day : 0;
+  const remainingDays = Math.max(daysInMonth - latestDay, 0);
+  const requiredDailyAvgTon =
+    remainingTon > 0
+      ? roundTon(remainingDays > 0 ? remainingTon / remainingDays : remainingTon)
+      : 0;
+  const idealMtdAtLatestDay = latestPoint ? latestPoint.idealMtdTon : 0;
+  const paceVarianceTon =
+    Math.round((actualMtdTon - idealMtdAtLatestDay) * 100) / 100;
+
+  return {
+    monthKey,
+    targetTon,
+    daysInMonth,
+    idealDailyTon,
+    actualMtdTon,
+    achievementPct,
+    remainingTon,
+    surplusTon,
+    isTargetReached,
+    latestDay,
+    latestDate: latestPoint ? latestPoint.date : null,
+    remainingDays,
+    requiredDailyAvgTon,
+    idealMtdAtLatestDay,
+    paceVarianceTon,
+    points,
+  };
 }
 
 function fmtWaNum(val: number, dashForZero = false): string {

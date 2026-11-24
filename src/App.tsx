@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import {
   BarChart3,
+  BedDouble,
   ClipboardList,
   FileCheck2,
   KeyRound,
@@ -18,6 +19,7 @@ import { AuthGateView } from './components/AuthGateView';
 import { DataSupirView } from './components/DataSupirView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { HistoryView } from './components/HistoryView';
+import { IjinMenginapView } from './components/IjinMenginapView';
 import { InputFormView } from './components/InputFormView';
 import { RecapView } from './components/RecapView';
 import { SuratJalanView } from './components/SuratJalanView';
@@ -34,6 +36,14 @@ import {
   saveDriverLogEntry,
   subscribeSharedDriverLogs,
 } from './services/driverLogService';
+import {
+  buildIjinMenginapId,
+  deleteIjinMenginapEntry,
+  getNextIjinMenginapNoForDate,
+  sanitizeIjinMenginapPayload,
+  saveIjinMenginapEntry,
+  subscribeSharedIjinMenginap,
+} from './services/ijinMenginapService';
 import {
   deleteOtpRequest,
   issueOtpForUser,
@@ -56,6 +66,8 @@ import {
   DeliveryReport,
   DriverLogEntry,
   DriverLogFormState,
+  IjinMenginapEntry,
+  IjinMenginapFormState,
   isAdminEmail,
   OtpRequestRecord,
   OtpSecretRecord,
@@ -64,7 +76,14 @@ import {
 } from './types/delivery';
 import { roundTon } from './utils/deliveryCalculations';
 
-type ActiveTab = 'recap' | 'input' | 'history' | 'surat_jalan' | 'data_supir' | 'admin_otp';
+type ActiveTab =
+  | 'recap'
+  | 'input'
+  | 'history'
+  | 'surat_jalan'
+  | 'data_supir'
+  | 'ijin_menginap'
+  | 'admin_otp';
 
 function MainApp() {
   const [user, setUser] = useState<User | null>(null);
@@ -90,6 +109,10 @@ function MainApp() {
   const [cloudDriverLogs, setCloudDriverLogs] = useState<DriverLogEntry[]>([]);
   const [localDriverLogs, setLocalDriverLogs] = useState<DriverLogEntry[]>([]);
   const [isLoadingDriverLogs, setIsLoadingDriverLogs] = useState(false);
+
+  const [cloudIjinMenginap, setCloudIjinMenginap] = useState<IjinMenginapEntry[]>([]);
+  const [localIjinMenginap, setLocalIjinMenginap] = useState<IjinMenginapEntry[]>([]);
+  const [isLoadingIjinMenginap, setIsLoadingIjinMenginap] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -124,6 +147,7 @@ function MainApp() {
         setCloudReports([]);
         setCloudSuratJalan([]);
         setCloudDriverLogs([]);
+        setCloudIjinMenginap([]);
         seenReportTimestampsRef.current = null;
         autoRetryCountRef.current = 0;
         if (retryTimerRef.current) {
@@ -348,9 +372,34 @@ function MainApp() {
     return () => unsub();
   }, [authReady, user, isAuthenticatedAndVerified, syncRetryKey]);
 
+  useEffect(() => {
+    if (!authReady || !user || !isAuthenticatedAndVerified) {
+      setCloudIjinMenginap([]);
+      setIsLoadingIjinMenginap(false);
+      return;
+    }
+
+    setIsLoadingIjinMenginap(true);
+    const unsub = subscribeSharedIjinMenginap(
+      (items) => {
+        autoRetryCountRef.current = 0;
+        setAuthError(null);
+        setCloudIjinMenginap(items);
+        setIsLoadingIjinMenginap(false);
+      },
+      (err) => {
+        setIsLoadingIjinMenginap(false);
+        scheduleSharedSyncRetry(err.message);
+      }
+    );
+
+    return () => unsub();
+  }, [authReady, user, isAuthenticatedAndVerified, syncRetryKey]);
+
   const reports = user ? cloudReports : localReports;
   const suratJalanEntries = user ? cloudSuratJalan : localSuratJalan;
   const driverLogEntries = user ? cloudDriverLogs : localDriverLogs;
+  const ijinMenginapEntries = user ? cloudIjinMenginap : localIjinMenginap;
 
   const selectedReport = useMemo(() => {
     if (reports.length === 0) return null;
@@ -596,6 +645,58 @@ function MainApp() {
     }
   };
 
+  const handleSaveIjinMenginap = async (
+    form: IjinMenginapFormState,
+    existing?: IjinMenginapEntry | null
+  ) => {
+    if (user) {
+      await saveIjinMenginapEntry(user.uid, form, existing);
+      showToast(
+        existing
+          ? `Surat Ijin Menginap ${form.noPolisi} diperbarui di Cloud.`
+          : `Surat Ijin Menginap ${form.noPolisi} tersimpan ke Cloud.`
+      );
+    } else {
+      const nowMs = Date.now();
+      const entryId = existing?.id || buildIjinMenginapId('local');
+      const assignedNo =
+        existing && existing.tanggalSurat === form.tanggalSurat
+          ? existing.no
+          : getNextIjinMenginapNoForDate(localIjinMenginap, form.tanggalSurat);
+      const sanitized = sanitizeIjinMenginapPayload('local', assignedNo, form);
+      const newLocal: IjinMenginapEntry = {
+        id: entryId,
+        ...sanitized,
+        createdAtMs: existing?.createdAtMs ?? nowMs,
+        updatedAtMs: nowMs,
+        isLocal: true,
+      };
+      setLocalIjinMenginap((prev) => {
+        const filtered = prev.filter((item) => item.id !== entryId);
+        return [newLocal, ...filtered].sort((a, b) => {
+          const dateCmp = b.tanggalSurat.localeCompare(a.tanggalSurat);
+          if (dateCmp !== 0) return dateCmp;
+          return a.no - b.no;
+        });
+      });
+      showToast(
+        existing
+          ? `Surat Ijin Menginap ${form.noPolisi} diperbarui di mode pratinjau.`
+          : `Surat Ijin Menginap ${form.noPolisi} disimpan di mode pratinjau.`
+      );
+    }
+  };
+
+  const handleDeleteIjinMenginap = async (entry: IjinMenginapEntry) => {
+    if (user && !entry.isLocal) {
+      await deleteIjinMenginapEntry(entry.id);
+      showToast(`Surat Ijin Menginap ${entry.noPolisi} dihapus.`);
+    } else {
+      setLocalIjinMenginap((prev) => prev.filter((item) => item.id !== entry.id));
+      showToast(`Surat Ijin Menginap ${entry.noPolisi} dihapus dari pratinjau.`);
+    }
+  };
+
   const openNewInput = () => {
     setActiveTab('input');
     setMobileMenuOpen(false);
@@ -632,6 +733,11 @@ function MainApp() {
       label: 'Input Data Supir',
       icon: <UserCheck className="w-4 h-4" />,
     },
+    {
+      id: 'ijin_menginap',
+      label: 'Surat Ijin Menginap',
+      icon: <BedDouble className="w-4 h-4" />,
+    },
     ...(isAdmin
       ? [
           {
@@ -650,6 +756,7 @@ function MainApp() {
     history: 'Riwayat & Tren Bulanan',
     surat_jalan: 'Data Surat Jalan',
     data_supir: 'Input Data Supir & Kendaraan',
+    ijin_menginap: 'Surat Permohonan Ijin Menginap',
     admin_otp: 'Permintaan OTP Pengguna',
   };
 
@@ -843,7 +950,7 @@ function MainApp() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-64 flex flex-col min-w-0 print-main-wrapper">
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 sticky top-0 z-30 no-print">
           <div className="flex items-center gap-3 min-w-0">
@@ -888,7 +995,7 @@ function MainApp() {
         </header>
 
         {/* Main Viewport */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-5">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-5 print-main-content">
           {authError && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="break-all">{authError}</span>
@@ -959,6 +1066,16 @@ function MainApp() {
               onDelete={handleDeleteDriverLog}
               onClearAll={handleClearAllDriverLogs}
               isLoading={isLoadingDriverLogs}
+            />
+          )}
+
+          {activeTab === 'ijin_menginap' && (
+            <IjinMenginapView
+              entries={ijinMenginapEntries}
+              driverLogs={driverLogEntries}
+              onSave={handleSaveIjinMenginap}
+              onDelete={handleDeleteIjinMenginap}
+              isLoading={isLoadingIjinMenginap}
             />
           )}
 

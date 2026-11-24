@@ -458,6 +458,116 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "IjinMenginap": {
+      "title": "IjinMenginap",
+      "description": "Surat Permohonan Ijin Menginap kendaraan/supir di area warehouse beserta penandatangan divisi.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna pembuat surat permohonan ijin menginap.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "no": {
+          "type": "integer",
+          "description": "Nomor urut surat ijin menginap per tanggal surat."
+        },
+        "tanggalSurat": {
+          "type": "string",
+          "description": "Tanggal pembuatan surat dalam format YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "tempatSurat": {
+          "type": "string",
+          "description": "Kota tempat penerbitan surat (default Bekasi).",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "namaSupir": {
+          "type": "string",
+          "description": "Nama supir yang dimohonkan ijin menginap.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "transporter": {
+          "type": "string",
+          "description": "Nama perusahaan transporter / ekspedisi.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "noPolisi": {
+          "type": "string",
+          "description": "Nomor polisi kendaraan.",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "tanggalMenginap": {
+          "type": "string",
+          "description": "Tanggal mulai menginap kendaraan/supir dalam format YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "tanggalMenginapSampai": {
+          "type": "string",
+          "description": "Tanggal selesai menginap (sampai dengan / s/d) dalam format YYYY-MM-DD atau kosong jika hanya satu hari.",
+          "maxLength": 10,
+          "pattern": "^(|\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]))$"
+        },
+        "alasanMenginap": {
+          "type": "string",
+          "description": "Alasan atau keterangan permohonan ijin menginap.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "namaPemohon": {
+          "type": "string",
+          "description": "Nama penandatangan Pemohon (Warehouse Div).",
+          "maxLength": 80
+        },
+        "namaDiketahui": {
+          "type": "string",
+          "description": "Nama penandatangan Diketahui oleh (Sales & Marketing Div).",
+          "maxLength": 80
+        },
+        "namaDisetujui": {
+          "type": "string",
+          "description": "Nama penandatangan Disetujui oleh (HA & GS Div.).",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen di server."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan dokumen di server."
+        }
+      },
+      "required": [
+        "ownerId",
+        "no",
+        "tanggalSurat",
+        "tempatSurat",
+        "namaSupir",
+        "transporter",
+        "noPolisi",
+        "tanggalMenginap",
+        "tanggalMenginapSampai",
+        "alasanMenginap",
+        "namaPemohon",
+        "namaDiketahui",
+        "namaDisetujui",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -478,6 +588,12 @@
         "$ref": "#/entities/DriverLog"
       },
       "description": "Koleksi data input supir dan kendaraan bersama untuk seluruh akun terverifikasi."
+    },
+    "/ijin_menginap/{entryId}": {
+      "schema": {
+        "$ref": "#/entities/IjinMenginap"
+      },
+      "description": "Koleksi Surat Permohonan Ijin Menginap bersama untuk seluruh akun terverifikasi."
     },
     "/otp_requests/{userId}": {
       "schema": {

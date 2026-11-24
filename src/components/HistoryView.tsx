@@ -6,15 +6,17 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import { DeliveryReport } from '../types/delivery';
+import { DeliveryReport, MONTHLY_TARGET_TON } from '../types/delivery';
 import {
   computeDailyTotals,
   exportReportsToCsv,
   formatIndonesianMonth,
   formatIndonesianShortDate,
   formatNumber,
+  getDaysInMonth,
   roundTon,
 } from '../utils/deliveryCalculations';
+import { MonthlyTargetChart } from './MonthlyTargetChart';
 
 interface HistoryViewProps {
   reports: DeliveryReport[];
@@ -29,6 +31,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [hoveredDailyDate, setHoveredDailyDate] = useState<string | null>(null);
 
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
@@ -51,30 +54,54 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [reports, selectedMonth, searchTerm]);
 
+  // Active month for 10.000 Ton monthly target trajectory
+  const targetMonthKey = useMemo(() => {
+    if (selectedMonth !== 'all') return selectedMonth;
+    if (availableMonths.length > 0) return availableMonths[0];
+    return new Date().toISOString().slice(0, 7);
+  }, [selectedMonth, availableMonths]);
+
+  const idealDailyTarget = useMemo(
+    () => roundTon(MONTHLY_TARGET_TON / getDaysInMonth(targetMonthKey)),
+    [targetMonthKey]
+  );
+
   // Chronological order for trend chart (max 14 latest entries in filter)
   const chartReports = useMemo(() => {
     return [...filteredReports].slice(0, 14).reverse();
   }, [filteredReports]);
 
   const maxDailyChart = useMemo(() => {
-    if (chartReports.length === 0) return 100;
-    return Math.max(...chartReports.map((r) => computeDailyTotals(r).combined), 1);
-  }, [chartReports]);
+    const rawMax = Math.max(
+      idealDailyTarget,
+      ...chartReports.map((r) => computeDailyTotals(r).combined),
+      100
+    );
+    return Math.ceil((rawMax * 1.15) / 100) * 100;
+  }, [chartReports, idealDailyTarget]);
+
+  const activeDailyBarReport = useMemo(() => {
+    if (chartReports.length === 0) return null;
+    if (hoveredDailyDate) {
+      const found = chartReports.find((r) => r.date === hoveredDailyDate);
+      if (found) return found;
+    }
+    return chartReports[chartReports.length - 1];
+  }, [chartReports, hoveredDailyDate]);
 
   return (
     <div className="space-y-6">
       {/* Toolbar */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900">Riwayat &amp; Tren Pengiriman</h2>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
+          <h2 className="text-xl font-bold text-slate-900">Riwayat &amp; Tren Pengiriman</h2>
+          <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span>Daftar laporan harian final yang tersimpan ({filteredReports.length} catatan)</span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1 font-medium text-slate-700">
               <Lock className="w-3 h-3 text-slate-500" />
-              Data Final · Hanya Lihat
+              Data Final (Hanya Lihat)
             </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Daftar laporan harian final yang tersimpan ({filteredReports.length} catatan, tidak dapat diubah atau dihapus)
           </p>
         </div>
 
@@ -125,69 +152,257 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         </div>
       </div>
 
+      {/* Monthly Target Trajectory Chart (10.000 Ton) */}
+      <MonthlyTargetChart
+        reports={reports}
+        monthKey={targetMonthKey}
+        onSelectDate={onViewReport}
+      />
+
       {/* Daily Trend Bar Visualization */}
-      {chartReports.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">
-                Grafik Tonase Harian (JKT &amp; SMG)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Menampilkan hingga 14 hari terbaru pada periode terpilih — klik batang untuk membuka
-                rekap harian
-              </p>
-            </div>
-            <div className="flex items-center gap-4 text-xs text-slate-600">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-blue-700 inline-block" />
-                Jakarta (JKT)
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-teal-600 inline-block" />
-                Semarang (SMG)
-              </span>
-            </div>
-          </div>
+      {chartReports.length > 0 && (() => {
+        const svgW = 920;
+        const svgH = 276;
+        const padL = 62;
+        const padR = 24;
+        const padT = 30;
+        const padB = 42;
+        const plotW = svgW - padL - padR;
+        const plotH = svgH - padT - padB;
+        const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxDailyChart * f));
+        const getBarY = (val: number) =>
+          padT + plotH - (Math.min(Math.max(val, 0), maxDailyChart) / maxDailyChart) * plotH;
+        const targetLineY = getBarY(idealDailyTarget);
+        const slotCount = Math.max(chartReports.length, 6);
+        const slotW = plotW / slotCount;
+        const barW = Math.min(Math.max(slotW * 0.46, 22), 48);
+        const activeDaily = activeDailyBarReport ? computeDailyTotals(activeDailyBarReport) : null;
 
-          <div className="h-52 flex items-end gap-3 pt-6 pb-2 px-2 border-b border-slate-200 overflow-x-auto">
-            {chartReports.map((r) => {
-              const daily = computeDailyTotals(r);
-              const totalPct = (daily.combined / maxDailyChart) * 100;
-              const jktShare = daily.combined > 0 ? (daily.jkt / daily.combined) * 100 : 0;
-              const smgShare = daily.combined > 0 ? (daily.smg / daily.combined) * 100 : 0;
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                  Grafik Tonase Harian (JKT &amp; SMG)
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Perbandingan realisasi pengiriman harian terhadap laju ideal {formatNumber(idealDailyTarget)} t/hari — klik batang untuk membuka rekap
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-700 shrink-0">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-blue-700 inline-block" />
+                  Jakarta (JKT)
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-teal-600 inline-block" />
+                  Semarang (SMG)
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-mono tabular-nums text-emerald-700">
+                  <span className="w-4 border-t-2 border-dashed border-emerald-600 inline-block" />
+                  Target Harian: {formatNumber(idealDailyTarget)} t
+                </span>
+              </div>
+            </div>
 
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => onViewReport(r.date)}
-                  className="flex-1 min-w-[52px] max-w-[84px] h-full flex flex-col items-center justify-end gap-1.5 group cursor-pointer focus:outline-none"
-                  title={`${formatIndonesianShortDate(r.date)}: JKT ${formatNumber(daily.jkt)} + SMG ${formatNumber(daily.smg)} = ${formatNumber(daily.combined)}`}
+            <div className="overflow-x-auto">
+              <div className="min-w-[600px]">
+                <svg
+                  viewBox={`0 0 ${svgW} ${svgH}`}
+                  className="w-full h-auto block select-none"
+                  role="img"
+                  aria-label="Grafik tonase harian JKT dan SMG"
+                  onMouseLeave={() => setHoveredDailyDate(null)}
                 >
-                  <span className="text-[11px] font-mono tabular-nums font-semibold text-slate-700 group-hover:text-blue-700">
-                    {formatNumber(daily.combined)}
-                  </span>
-                  <div
-                    className="w-full max-w-[36px] rounded-t-md overflow-hidden flex flex-col-reverse bg-slate-100 transition-transform group-hover:-translate-y-0.5"
-                    style={{ height: `${Math.max(totalPct * 0.78, daily.combined > 0 ? 6 : 2)}%` }}
+                  {/* Horizontal Gridlines & Y-Axis Ticks */}
+                  {yTicks.map((tick) => {
+                    const y = getBarY(tick);
+                    return (
+                      <g key={`dy-${tick}`}>
+                        <line
+                          x1={padL}
+                          y1={y}
+                          x2={svgW - padR}
+                          y2={y}
+                          stroke={tick === 0 ? '#94a3b8' : '#e2e8f0'}
+                          strokeWidth={tick === 0 ? 1.5 : 1}
+                        />
+                        <text
+                          x={padL - 10}
+                          y={y + 4}
+                          textAnchor="end"
+                          fontSize="12"
+                          fontWeight="500"
+                          className="fill-slate-600 font-mono tabular-nums"
+                        >
+                          {formatNumber(tick)}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Y-axis unit */}
+                  <text
+                    x={padL}
+                    y={16}
+                    textAnchor="start"
+                    fontSize="12"
+                    fontWeight="600"
+                    className="fill-slate-500"
                   >
-                    {daily.jkt > 0 && (
-                      <div className="w-full bg-blue-700" style={{ height: `${jktShare}%` }} />
-                    )}
-                    {daily.smg > 0 && (
-                      <div className="w-full bg-teal-600" style={{ height: `${smgShare}%` }} />
-                    )}
-                  </div>
-                  <span className="text-[11px] font-mono tabular-nums text-slate-500 whitespace-nowrap">
-                    {r.date.slice(5)}
+                    Tonase Harian (Ton)
+                  </text>
+
+                  {/* Ideal Daily Pace Line */}
+                  <line
+                    x1={padL}
+                    y1={targetLineY}
+                    x2={svgW - padR}
+                    y2={targetLineY}
+                    stroke="#059669"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
+                  <rect
+                    x={svgW - padR - 178}
+                    y={Math.max(targetLineY - 21, padT)}
+                    width={174}
+                    height={19}
+                    rx={4}
+                    fill="#059669"
+                  />
+                  <text
+                    x={svgW - padR - 91}
+                    y={Math.max(targetLineY - 8, padT + 13)}
+                    textAnchor="middle"
+                    fontSize="11.5"
+                    fontWeight="700"
+                    className="fill-white font-mono tabular-nums"
+                  >
+                    IDEAL: {formatNumber(idealDailyTarget)} t/hari
+                  </text>
+
+                  {/* Stacked JKT + SMG Bars */}
+                  {chartReports.map((r, idx) => {
+                    const daily = computeDailyTotals(r);
+                    const totalSlots = chartReports.length;
+                    const groupLeft = padL + ((plotW - slotW * totalSlots) / 2) + idx * slotW;
+                    const cx = groupLeft + slotW / 2;
+                    const barX = cx - barW / 2;
+                    const baseY = getBarY(0);
+                    const jktTopY = getBarY(daily.jkt);
+                    const jktH = Math.max(baseY - jktTopY, 0);
+                    const totalTopY = getBarY(daily.combined);
+                    const smgH = Math.max(jktTopY - totalTopY, 0);
+                    const isActive = activeDailyBarReport?.date === r.date;
+
+                    return (
+                      <g
+                        key={r.id}
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHoveredDailyDate(r.date)}
+                        onClick={() => onViewReport(r.date)}
+                      >
+                        <rect
+                          x={groupLeft}
+                          y={padT}
+                          width={slotW}
+                          height={plotH}
+                          fill={isActive ? '#f8fafc' : 'transparent'}
+                        />
+                        {daily.jkt > 0 && (
+                          <rect
+                            x={barX}
+                            y={jktTopY}
+                            width={barW}
+                            height={jktH}
+                            fill="#1d4ed8"
+                            opacity={isActive ? 1 : 0.88}
+                          />
+                        )}
+                        {daily.smg > 0 && (
+                          <rect
+                            x={barX}
+                            y={totalTopY}
+                            width={barW}
+                            height={smgH}
+                            rx={3}
+                            fill="#0d9488"
+                            opacity={isActive ? 1 : 0.88}
+                          />
+                        )}
+                        <text
+                          x={cx}
+                          y={Math.max(totalTopY - 8, padT + 12)}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fontWeight="700"
+                          className={`${
+                            isActive ? 'fill-blue-800' : 'fill-slate-800'
+                          } font-mono tabular-nums`}
+                        >
+                          {formatNumber(daily.combined)}
+                        </text>
+                        <text
+                          x={cx}
+                          y={svgH - 14}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fontWeight={isActive ? '700' : '500'}
+                          className={`${
+                            isActive ? 'fill-slate-900' : 'fill-slate-600'
+                          } font-mono tabular-nums`}
+                        >
+                          {formatIndonesianShortDate(r.date).replace(/\s+\d{4}$/, '')}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+
+            {activeDailyBarReport && activeDaily && (
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-900">
+                    {formatIndonesianShortDate(activeDailyBarReport.date)}
                   </span>
-                </button>
-              );
-            })}
+                  <span aria-hidden="true" className="text-slate-300">
+                    ·
+                  </span>
+                  <span className="font-mono tabular-nums">
+                    JKT <strong className="text-blue-800">{formatNumber(activeDaily.jkt)} t</strong>
+                  </span>
+                  <span aria-hidden="true" className="text-slate-300">
+                    ·
+                  </span>
+                  <span className="font-mono tabular-nums">
+                    SMG <strong className="text-teal-700">{formatNumber(activeDaily.smg)} t</strong>
+                  </span>
+                  <span aria-hidden="true" className="text-slate-300">
+                    ·
+                  </span>
+                  <span className="font-mono tabular-nums">
+                    Total Harian <strong className="text-slate-900">{formatNumber(activeDaily.combined)} t</strong>
+                  </span>
+                </div>
+                <span className="font-mono tabular-nums">
+                  {activeDaily.combined >= idealDailyTarget ? (
+                    <span className="text-emerald-700 font-semibold">
+                      +{formatNumber(roundTon(activeDaily.combined - idealDailyTarget))} t di atas ideal harian
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 font-semibold">
+                      -{formatNumber(roundTon(idealDailyTarget - activeDaily.combined))} t di bawah ideal harian
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* History Data Grid (Final Read-Only) */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
