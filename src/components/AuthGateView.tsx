@@ -386,11 +386,11 @@ export const AuthGateView: React.FC<AuthGateViewProps> = ({
           <div className="space-y-6">
             <div className="space-y-2.5">
               <div className="inline-flex items-center bg-white rounded-xl px-3.5 py-2 shadow-sm">
-                <div className="h-12 w-48 overflow-hidden flex items-center justify-center">
+                <div className="h-14 w-52 overflow-hidden flex items-center justify-center">
                   <img
-                    src="/assets/aistudio/image_fccbe718.png"
-                    alt="LOGISTIC FUMIRA"
-                    className="w-full h-full object-cover object-center"
+                    src="/assets/aistudio/image_d1d507a0.png"
+                    alt="logistic PT FUMIRA"
+                    className="w-full h-full object-cover object-[center_52%] scale-[1.25]"
                   />
                 </div>
               </div>

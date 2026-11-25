@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -9,12 +9,14 @@ import {
   RefreshCw,
   Save,
   Search,
+  Timer,
   Trash2,
   UserCheck,
   X,
 } from 'lucide-react';
 import {
   calculateDriverDuration,
+  calculateLiveDriverTimer,
   exportDriverLogsCsv,
   exportDriverLogsXlsx,
   formatAverageDurationMinutes,
@@ -120,10 +122,47 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
     });
   }, [entries, searchTerm, filterDate]);
 
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  const hasActiveTimers = useMemo(() => {
+    const hasActiveForm = Boolean(jamMasuk.trim() && !jamKeluar.trim());
+    const hasActiveRow = entries.some((e) => Boolean(e.jamMasuk && !e.jamKeluar));
+    return hasActiveForm || hasActiveRow;
+  }, [entries, jamMasuk, jamKeluar]);
+
+  useEffect(() => {
+    if (!hasActiveTimers) return;
+    setNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [hasActiveTimers]);
+
   const formDuration = useMemo(
     () => calculateDriverDuration(jamMasuk, jamKeluar),
     [jamMasuk, jamKeluar]
   );
+
+  const formLiveTimer = useMemo(
+    () => (jamKeluar.trim() ? null : calculateLiveDriverTimer(tanggal, jamMasuk, nowMs)),
+    [tanggal, jamMasuk, jamKeluar, nowMs]
+  );
+
+  const activeTimerStats = useMemo(() => {
+    let totalActive = 0;
+    let overTwoHours = 0;
+    for (const item of filteredEntries) {
+      if (!item.jamKeluar && item.jamMasuk) {
+        const live = calculateLiveDriverTimer(item.tanggal, item.jamMasuk, nowMs);
+        if (live && !live.isPendingStart) {
+          totalActive += 1;
+          if (live.isOverTwoHours) overTwoHours += 1;
+        }
+      }
+    }
+    return { totalActive, overTwoHours };
+  }, [filteredEntries, nowMs]);
 
   const avgDurationSummary = useMemo(() => {
     const completed = filteredEntries
@@ -272,6 +311,20 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
             <span>
               Tanggal {formatIndonesianShortDate(tanggal)}: {countOnSelectedDate} kendaraan
             </span>
+            {activeTimerStats.totalActive > 0 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                  <Timer className="w-3.5 h-3.5 text-slate-500" />
+                  Timer Aktif: {activeTimerStats.totalActive}
+                  {activeTimerStats.overTwoHours > 0 && (
+                    <span className="font-semibold text-red-700">
+                      ({activeTimerStats.overTwoHours} &gt; 2 jam)
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
             {avgDurationSummary && (
               <>
                 <span aria-hidden="true">·</span>
@@ -436,10 +489,43 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                 className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
               />
               {formDuration ? (
-                <p className="text-[11px] font-medium text-blue-700 tabular-nums">
+                <p
+                  className={`text-[11px] font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                    formDuration.isOverTwoHours
+                      ? 'bg-red-100/80 border-red-300 text-red-800'
+                      : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      formDuration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                    }`}
+                  />
                   Durasi: {formDuration.formatted} ({formDuration.rangeLabel}
                   {formDuration.isOvernight ? ', +1 hari' : ''})
                 </p>
+              ) : formLiveTimer ? (
+                formLiveTimer.isPendingStart ? (
+                  <p className="text-[11px] text-slate-500 tabular-nums">
+                    Timer menunggu jam masuk ({jamMasuk})
+                  </p>
+                ) : (
+                  <p
+                    className={`text-[11px] font-mono font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                      formLiveTimer.isOverTwoHours
+                        ? 'bg-red-100/80 border-red-300 text-red-800'
+                        : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                        formLiveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                      }`}
+                    />
+                    Timer: {formLiveTimer.clockText} (
+                    {formLiveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'})
+                  </p>
+                )
               ) : (
                 <p className="text-[11px] text-slate-400">
                   Durasi dihitung otomatis saat jam masuk &amp; keluar terisi
@@ -709,6 +795,24 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
           </div>
         </div>
 
+        {/* Color Legend Strip for Durasi Timer */}
+        <div className="px-4 py-2 bg-slate-50/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-medium text-slate-700">Keterangan Warna Durasi Timer:</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-yellow-400 bg-yellow-100/80 text-yellow-900 font-medium">
+              <span className="w-2 h-2 rounded-full bg-yellow-500" />
+              Di bawah 2 jam (&lt; 2 jam)
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-red-300 bg-red-100/80 text-red-800 font-medium">
+              <span className="w-2 h-2 rounded-full bg-red-600" />
+              Di atas 2 jam (&gt; 2 jam)
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400">
+            Timer berjalan otomatis saat Jam Keluar belum diisi
+          </span>
+        </div>
+
         {isLoading ? (
           <div className="p-6 space-y-3 animate-pulse">
             {[0, 1, 2].map((i) => (
@@ -737,7 +841,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                   <th className="py-3 px-4">Hari / Tanggal</th>
                   <th className="py-3 px-4">Jam Masuk</th>
                   <th className="py-3 px-4">Jam Keluar</th>
-                  <th className="py-3 px-4">Durasi</th>
+                  <th className="py-3 px-4">Durasi Timer</th>
                   <th className="py-3 px-4">No Mobil</th>
                   <th className="py-3 px-4">Supir</th>
                   <th className="py-3 px-4">Jenis Kendaraan</th>
@@ -751,6 +855,9 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                   const isConfirming = confirmDeleteId === item.id;
                   const isClockBusy = quickBusyId === item.id;
                   const duration = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
+                  const liveTimer = duration
+                    ? null
+                    : calculateLiveDriverTimer(item.tanggal, item.jamMasuk, nowMs);
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -786,15 +893,61 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         {duration ? (
-                          <div>
-                            <div className="font-semibold tabular-nums text-slate-900">
+                          <div className="space-y-1">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-xs font-semibold tabular-nums ${
+                                duration.isOverTwoHours
+                                  ? 'bg-red-100/80 border-red-300 text-red-800'
+                                  : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                              }`}
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  duration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                                }`}
+                              />
                               {duration.formatted}
-                            </div>
+                            </span>
                             <div className="text-xs font-mono tabular-nums text-slate-400">
                               {duration.rangeLabel}
                               {duration.isOvernight ? ' (+1 hari)' : ''}
                             </div>
                           </div>
+                        ) : liveTimer ? (
+                          liveTimer.isPendingStart ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-600 text-xs font-medium">
+                                Menunggu ({item.jamMasuk})
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-xs font-mono font-bold tabular-nums ${
+                                  liveTimer.isOverTwoHours
+                                    ? 'bg-red-100/80 border-red-300 text-red-800'
+                                    : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                                }`}
+                              >
+                                <span
+                                  className={`w-2 h-2 rounded-full shrink-0 animate-pulse ${
+                                    liveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                                  }`}
+                                />
+                                {liveTimer.clockText}
+                              </span>
+                              <div className="text-[11px] text-slate-500 tabular-nums">
+                                Aktif sejak {item.jamMasuk} ·{' '}
+                                <span
+                                  className={`font-semibold ${
+                                    liveTimer.isOverTwoHours ? 'text-red-700' : 'text-yellow-800'
+                                  }`}
+                                >
+                                  {liveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'}
+                                </span>
+                              </div>
+                            </div>
+                          )
                         ) : (
                           <span className="text-xs text-slate-400">-</span>
                         )}

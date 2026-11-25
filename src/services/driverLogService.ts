@@ -43,9 +43,24 @@ export interface DriverDurationInfo {
   hours: number;
   minutes: number;
   isOvernight: boolean;
+  isOverTwoHours: boolean;
   formatted: string;
   rangeLabel: string;
 }
+
+export interface LiveDriverTimerInfo {
+  elapsedSeconds: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  isPendingStart: boolean;
+  isOverTwoHours: boolean;
+  clockText: string;
+  formatted: string;
+}
+
+const TWO_HOURS_MINUTES = 120;
+const TWO_HOURS_SECONDS = 2 * 60 * 60;
 
 export function calculateDriverDuration(
   jamMasuk?: string | null,
@@ -85,8 +100,70 @@ export function calculateDriverDuration(
     hours,
     minutes,
     isOvernight,
+    isOverTwoHours: totalMinutes > TWO_HOURS_MINUTES,
     formatted,
     rangeLabel: `${masuk} - ${keluar}`,
+  };
+}
+
+export function calculateLiveDriverTimer(
+  tanggal?: string | null,
+  jamMasuk?: string | null,
+  nowMs: number = Date.now()
+): LiveDriverTimerInfo | null {
+  const dateStr = (tanggal || '').trim();
+  const masuk = (jamMasuk || '').trim();
+
+  if (!VALIDATION_LIMITS.DATE_REGEX.test(dateStr) || !VALIDATION_LIMITS.TIME_REGEX.test(masuk)) {
+    return null;
+  }
+
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [inH, inM] = masuk.split(':').map(Number);
+  const startMs = new Date(year, month - 1, day, inH, inM, 0, 0).getTime();
+
+  if (!Number.isFinite(startMs)) {
+    return null;
+  }
+
+  if (nowMs < startMs) {
+    return {
+      elapsedSeconds: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      isPendingStart: true,
+      isOverTwoHours: false,
+      clockText: '00:00:00',
+      formatted: '0 mnt',
+    };
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+
+  const clockText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  let formatted: string;
+  if (hours > 0 && minutes > 0) {
+    formatted = `${hours} jam ${minutes} mnt`;
+  } else if (hours > 0) {
+    formatted = `${hours} jam`;
+  } else {
+    formatted = `${minutes} mnt`;
+  }
+
+  return {
+    elapsedSeconds,
+    hours,
+    minutes,
+    seconds,
+    isPendingStart: false,
+    isOverTwoHours: elapsedSeconds > TWO_HOURS_SECONDS,
+    clockText,
+    formatted,
   };
 }
 

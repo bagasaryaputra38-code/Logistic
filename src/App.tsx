@@ -787,11 +787,11 @@ function MainApp() {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-slate-200 no-print">
         <div className="h-16 px-4 flex items-center border-b border-slate-200">
-          <div className="h-12 w-48 overflow-hidden flex items-center justify-center shrink-0">
+          <div className="h-14 w-52 overflow-hidden flex items-center justify-center shrink-0">
             <img
-              src="/assets/aistudio/image_fccbe718.png"
-              alt="LOGISTIC FUMIRA"
-              className="w-full h-full object-cover object-center"
+              src="/assets/aistudio/image_d1d507a0.png"
+              alt="logistic PT FUMIRA"
+              className="w-full h-full object-cover object-[center_52%] scale-[1.25]"
             />
           </div>
         </div>
@@ -877,11 +877,11 @@ function MainApp() {
           />
           <div className="relative w-72 max-w-[85vw] bg-white h-full flex flex-col border-r border-slate-200 z-10">
             <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200">
-              <div className="h-12 w-44 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="h-12 w-48 overflow-hidden flex items-center justify-center shrink-0">
                 <img
-                  src="/assets/aistudio/image_fccbe718.png"
-                  alt="LOGISTIC FUMIRA"
-                  className="w-full h-full object-cover object-center"
+                  src="/assets/aistudio/image_d1d507a0.png"
+                  alt="logistic PT FUMIRA"
+                  className="w-full h-full object-cover object-[center_52%] scale-[1.2]"
                 />
               </div>
               <button
