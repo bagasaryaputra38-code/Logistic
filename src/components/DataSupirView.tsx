@@ -795,24 +795,6 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
           </div>
         </div>
 
-        {/* Color Legend Strip for Durasi Timer */}
-        <div className="px-4 py-2 bg-slate-50/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-medium text-slate-700">Keterangan Warna Durasi Timer:</span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-yellow-400 bg-yellow-100/80 text-yellow-900 font-medium">
-              <span className="w-2 h-2 rounded-full bg-yellow-500" />
-              Di bawah 2 jam (&lt; 2 jam)
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-red-300 bg-red-100/80 text-red-800 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-600" />
-              Di atas 2 jam (&gt; 2 jam)
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            Timer berjalan otomatis saat Jam Keluar belum diisi
-          </span>
-        </div>
-
         {isLoading ? (
           <div className="p-6 space-y-3 animate-pulse">
             {[0, 1, 2].map((i) => (
