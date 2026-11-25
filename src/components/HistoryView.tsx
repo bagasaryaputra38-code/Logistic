@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Download,
   Eye,
+  FileSpreadsheet,
   Lock,
   Plus,
   Search,
@@ -10,6 +11,7 @@ import { DeliveryReport, MONTHLY_TARGET_TON } from '../types/delivery';
 import {
   computeDailyTotals,
   exportReportsToCsv,
+  exportReportsToXlsx,
   formatIndonesianMonth,
   formatIndonesianShortDate,
   formatNumber,
@@ -135,10 +137,20 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             type="button"
             disabled={filteredReports.length === 0}
             onClick={() => exportReportsToCsv(filteredReports)}
-            className="inline-flex items-center gap-1.5 h-10 px-3.5 border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 h-10 px-3.5 border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
             <Download className="w-4 h-4" />
             Ekspor CSV
+          </button>
+
+          <button
+            type="button"
+            disabled={filteredReports.length === 0}
+            onClick={() => exportReportsToXlsx(filteredReports)}
+            className="inline-flex items-center gap-1.5 h-10 px-3.5 border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Excel (.xlsx)
           </button>
 
           <button

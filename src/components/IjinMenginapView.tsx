@@ -6,6 +6,7 @@ import {
   Edit3,
   Eye,
   FileDown,
+  FileSpreadsheet,
   FileText,
   Printer,
   RefreshCw,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   exportIjinMenginapCsv,
+  exportIjinMenginapXlsx,
   getNextIjinMenginapNoForDate,
 } from '../services/ijinMenginapService';
 import {
@@ -996,10 +998,20 @@ export const IjinMenginapView: React.FC<IjinMenginapViewProps> = ({
               type="button"
               disabled={filteredEntries.length === 0}
               onClick={() => exportIjinMenginapCsv(filteredEntries)}
-              className="inline-flex items-center gap-1.5 h-9 px-3 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 h-9 px-3 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Download className="w-3.5 h-3.5" />
               CSV
+            </button>
+
+            <button
+              type="button"
+              disabled={filteredEntries.length === 0}
+              onClick={() => exportIjinMenginapXlsx(filteredEntries)}
+              className="inline-flex items-center gap-1.5 h-9 px-3 border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Excel
             </button>
           </div>
         </div>

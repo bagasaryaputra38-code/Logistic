@@ -21,6 +21,11 @@ import {
   SuratJalanVendor,
   VALIDATION_LIMITS,
 } from '../types/delivery';
+import {
+  downloadCsvFile,
+  downloadXlsxFile,
+  getLocalDateStamp,
+} from '../utils/csvExport';
 import { handleFirestoreError, OperationType } from './deliveryService';
 import {
   normalizeSheetDate,
@@ -327,7 +332,7 @@ export async function deleteSuratJalanEntry(entryId: string): Promise<void> {
   }
 }
 
-function splitCsvLine(line: string): string[] {
+function splitCsvLine(line: string, delimiter = ','): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -341,7 +346,7 @@ function splitCsvLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (ch === ',' && !inQuotes) {
+    } else if (ch === delimiter && !inQuotes) {
       result.push(current.trim());
       current = '';
     } else {
@@ -359,7 +364,12 @@ export function parseSuratJalanCsvText(csvText: string): ParsedSheetSuratJalanRo
   const lines = cleanText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return [];
 
-  const firstCols = splitCsvLine(lines[0]).map((c) => c.toLowerCase());
+  const sampleLine = lines[0] || '';
+  const semicolonCount = (sampleLine.match(/;/g) || []).length;
+  const commaCount = (sampleLine.match(/,/g) || []).length;
+  const delimiter = semicolonCount > commaCount ? ';' : ',';
+
+  const firstCols = splitCsvLine(lines[0], delimiter).map((c) => c.toLowerCase());
   const hasHeader =
     firstCols[0]?.includes('tanggal') ||
     firstCols[0]?.startsWith('no') ||
@@ -371,7 +381,7 @@ export function parseSuratJalanCsvText(csvText: string): ParsedSheetSuratJalanRo
   const perDateCounter = new Map<string, number>();
 
   for (let i = startIdx; i < lines.length; i += 1) {
-    const cols = splitCsvLine(lines[i]);
+    const cols = splitCsvLine(lines[i], delimiter);
     if (cols.length < 3) continue;
 
     const rawDate = noFirst ? cols[1] ?? '' : cols[0] ?? '';
@@ -464,12 +474,6 @@ export async function importSuratJalanBatch(
 
 export function exportSuratJalanCsv(entries: SuratJalanEntry[]): void {
   const headers = ['Tanggal', 'No', 'No Delivery Order', 'Nama Vendor', 'Dokumen'];
-  const esc = (s: string) => {
-    if (/[",\n\r]/.test(s)) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
 
   const ordered = [...entries].sort((a, b) => {
     const dateCmp = a.tanggal.localeCompare(b.tanggal);
@@ -484,21 +488,45 @@ export function exportSuratJalanCsv(entries: SuratJalanEntry[]): void {
         : item.vendor;
     return [
       item.tanggal,
-      String(item.no),
-      esc(item.noDO),
-      esc(vendorCell),
-      esc(item.dokumen || 'TERKIRIM'),
-    ].join(',');
+      item.no,
+      item.noDO,
+      vendorCell,
+      item.dokumen || 'TERKIRIM',
+    ];
   });
 
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `DATA_SURAT_JALAN_BALIK_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCsvFile(`DATA_SURAT_JALAN_BALIK_${getLocalDateStamp()}.csv`, headers, rows);
+}
+
+export function exportSuratJalanXlsx(entries: SuratJalanEntry[]): void {
+  const headers = ['Tanggal', 'No', 'No Delivery Order', 'Nama Vendor', 'Dokumen'];
+
+  const ordered = [...entries].sort((a, b) => {
+    const dateCmp = a.tanggal.localeCompare(b.tanggal);
+    if (dateCmp !== 0) return dateCmp;
+    return a.no - b.no;
+  });
+
+  const rows = ordered.map((item) => {
+    const vendorCell =
+      item.vendor === 'Lainnya' && item.customVendor
+        ? `${item.vendor} (${item.customVendor})`
+        : item.vendor;
+    return [
+      item.tanggal,
+      item.no,
+      item.noDO,
+      vendorCell,
+      item.dokumen || 'TERKIRIM',
+    ];
+  });
+
+  downloadXlsxFile(`DATA_SURAT_JALAN_BALIK_${getLocalDateStamp()}.xlsx`, [
+    {
+      sheetName: 'Surat Jalan',
+      headers,
+      rows,
+      textColumnIndices: [0, 2],
+    },
+  ]);
 }

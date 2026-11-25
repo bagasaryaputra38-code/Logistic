@@ -5,6 +5,7 @@ import {
   Clock,
   Download,
   Edit3,
+  FileSpreadsheet,
   RefreshCw,
   Save,
   Search,
@@ -13,7 +14,10 @@ import {
   X,
 } from 'lucide-react';
 import {
+  calculateDriverDuration,
   exportDriverLogsCsv,
+  exportDriverLogsXlsx,
+  formatAverageDurationMinutes,
   getNextDriverNoForDate,
 } from '../services/driverLogService';
 import {
@@ -115,6 +119,23 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
       );
     });
   }, [entries, searchTerm, filterDate]);
+
+  const formDuration = useMemo(
+    () => calculateDriverDuration(jamMasuk, jamKeluar),
+    [jamMasuk, jamKeluar]
+  );
+
+  const avgDurationSummary = useMemo(() => {
+    const completed = filteredEntries
+      .map((item) => calculateDriverDuration(item.jamMasuk, item.jamKeluar))
+      .filter((d): d is NonNullable<typeof d> => d !== null);
+    if (completed.length === 0) return null;
+    const totalMin = completed.reduce((sum, d) => sum + d.totalMinutes, 0);
+    return {
+      count: completed.length,
+      label: formatAverageDurationMinutes(totalMin / completed.length),
+    };
+  }, [filteredEntries]);
 
   const resetFormAfterSave = () => {
     setJamMasuk(getCurrentTimeHHMM());
@@ -251,6 +272,14 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
             <span>
               Tanggal {formatIndonesianShortDate(tanggal)}: {countOnSelectedDate} kendaraan
             </span>
+            {avgDurationSummary && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-medium text-blue-700">
+                  Rata-rata Durasi: {avgDurationSummary.label} ({avgDurationSummary.count} data)
+                </span>
+              </>
+            )}
           </div>
           <h2 className="text-xl font-bold text-slate-900">Input Data Supir</h2>
         </div>
@@ -406,6 +435,16 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                 onChange={(e) => setJamKeluar(e.target.value)}
                 className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
               />
+              {formDuration ? (
+                <p className="text-[11px] font-medium text-blue-700 tabular-nums">
+                  Durasi: {formDuration.formatted} ({formDuration.rangeLabel}
+                  {formDuration.isOvernight ? ', +1 hari' : ''})
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  Durasi dihitung otomatis saat jam masuk &amp; keluar terisi
+                </p>
+              )}
             </div>
 
             {/* No Mobil */}
@@ -614,10 +653,20 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
               type="button"
               disabled={filteredEntries.length === 0}
               onClick={() => exportDriverLogsCsv(filteredEntries)}
-              className="inline-flex items-center gap-1.5 h-9 px-3 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 h-9 px-3 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Download className="w-3.5 h-3.5" />
               CSV
+            </button>
+
+            <button
+              type="button"
+              disabled={filteredEntries.length === 0}
+              onClick={() => exportDriverLogsXlsx(filteredEntries)}
+              className="inline-flex items-center gap-1.5 h-9 px-3 border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Excel
             </button>
 
             {entries.length > 0 &&
@@ -688,6 +737,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                   <th className="py-3 px-4">Hari / Tanggal</th>
                   <th className="py-3 px-4">Jam Masuk</th>
                   <th className="py-3 px-4">Jam Keluar</th>
+                  <th className="py-3 px-4">Durasi</th>
                   <th className="py-3 px-4">No Mobil</th>
                   <th className="py-3 px-4">Supir</th>
                   <th className="py-3 px-4">Jenis Kendaraan</th>
@@ -700,6 +750,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                 {filteredEntries.map((item) => {
                   const isConfirming = confirmDeleteId === item.id;
                   const isClockBusy = quickBusyId === item.id;
+                  const duration = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -731,6 +782,21 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                             <Clock className="w-3 h-3" />
                             {isClockBusy ? 'Menyimpan...' : 'Catat Keluar'}
                           </button>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {duration ? (
+                          <div>
+                            <div className="font-semibold tabular-nums text-slate-900">
+                              {duration.formatted}
+                            </div>
+                            <div className="text-xs font-mono tabular-nums text-slate-400">
+                              {duration.rangeLabel}
+                              {duration.isOvernight ? ' (+1 hari)' : ''}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold text-slate-900 whitespace-nowrap">

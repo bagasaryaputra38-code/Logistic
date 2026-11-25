@@ -5,6 +5,13 @@ import {
   SEGMENTS,
   SegmentKey,
 } from '../types/delivery';
+import {
+  downloadCsvFile,
+  downloadXlsxFile,
+  formatCsvDecimal,
+  getCsvDayName,
+  getLocalDateStamp,
+} from './csvExport';
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = [
@@ -586,33 +593,34 @@ export function parseWhatsAppReport(raw: string): ParsedWaResult {
 export function exportReportsToCsv(reports: DeliveryReport[]): void {
   const headers = [
     'Tanggal',
-    'JKT Project Forming',
-    'JKT Industri',
-    'JKT ISBS Ritel',
-    'JKT Others',
-    'JKT Harian (TODAY)',
-    'SMG Project Forming',
-    'SMG Industri',
-    'SMG ISBS Ritel',
-    'SMG Others',
-    'SMG Harian (TODAY)',
-    'Total Harian JKT & SMG',
-    'MTD JKT Project Forming',
-    'MTD JKT Industri',
-    'MTD JKT ISBS Ritel',
-    'MTD JKT Others',
-    'MTD JKT Total',
-    'MTD SMG Project Forming',
-    'MTD SMG Industri',
-    'MTD SMG ISBS Ritel',
-    'MTD SMG Others',
-    'MTD SMG Total',
-    'Total Delv Jkt&Smg',
+    'Hari',
+    'JKT Project Forming (t)',
+    'JKT Industri (t)',
+    'JKT ISBS Ritel (t)',
+    'JKT Others (t)',
+    'JKT Harian (t)',
+    'SMG Project Forming (t)',
+    'SMG Industri (t)',
+    'SMG ISBS Ritel (t)',
+    'SMG Others (t)',
+    'SMG Harian (t)',
+    'Total Harian JKT & SMG (t)',
+    'MTD JKT Project Forming (t)',
+    'MTD JKT Industri (t)',
+    'MTD JKT ISBS Ritel (t)',
+    'MTD JKT Others (t)',
+    'MTD JKT Total (t)',
+    'MTD SMG Project Forming (t)',
+    'MTD SMG Industri (t)',
+    'MTD SMG ISBS Ritel (t)',
+    'MTD SMG Others (t)',
+    'MTD SMG Total (t)',
+    'Total Delv JKT & SMG (t)',
     'Mode MTD',
     'Catatan',
   ];
 
-  const sorted = [...reports].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...reports].sort((a, b) => a.date.localeCompare(b.date));
   const rows = sorted.map((r) => {
     const daily = computeDailyTotals(r);
     const mtdCombined = roundTon(
@@ -620,46 +628,157 @@ export function exportReportsToCsv(reports: DeliveryReport[]): void {
         ? r.mtdCombinedTotal
         : r.mtdJktTotal + r.mtdSmgTotal
     );
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+
     return [
       r.date,
-      r.jktProjectForming,
-      r.jktIndustri,
-      r.jktIsbsRitel,
-      r.jktOthers,
-      daily.jkt,
-      r.smgProjectForming,
-      r.smgIndustri,
-      r.smgIsbsRitel,
-      r.smgOthers,
-      daily.smg,
-      daily.combined,
-      r.mtdJktProjectForming,
-      r.mtdJktIndustri,
-      r.mtdJktIsbsRitel,
-      r.mtdJktOthers,
-      r.mtdJktTotal,
-      r.mtdSmgProjectForming,
-      r.mtdSmgIndustri,
-      r.mtdSmgIsbsRitel,
-      r.mtdSmgOthers,
-      r.mtdSmgTotal,
-      mtdCombined,
-      r.mtdMode,
-      esc(r.notes || ''),
-    ].join(',');
+      getCsvDayName(r.date),
+      formatCsvDecimal(r.jktProjectForming),
+      formatCsvDecimal(r.jktIndustri),
+      formatCsvDecimal(r.jktIsbsRitel),
+      formatCsvDecimal(r.jktOthers),
+      formatCsvDecimal(daily.jkt),
+      formatCsvDecimal(r.smgProjectForming),
+      formatCsvDecimal(r.smgIndustri),
+      formatCsvDecimal(r.smgIsbsRitel),
+      formatCsvDecimal(r.smgOthers),
+      formatCsvDecimal(daily.smg),
+      formatCsvDecimal(daily.combined),
+      formatCsvDecimal(r.mtdJktProjectForming),
+      formatCsvDecimal(r.mtdJktIndustri),
+      formatCsvDecimal(r.mtdJktIsbsRitel),
+      formatCsvDecimal(r.mtdJktOthers),
+      formatCsvDecimal(r.mtdJktTotal),
+      formatCsvDecimal(r.mtdSmgProjectForming),
+      formatCsvDecimal(r.mtdSmgIndustri),
+      formatCsvDecimal(r.mtdSmgIsbsRitel),
+      formatCsvDecimal(r.mtdSmgOthers),
+      formatCsvDecimal(r.mtdSmgTotal),
+      formatCsvDecimal(mtdCombined),
+      r.mtdMode === 'auto' ? 'Otomatis' : 'Manual',
+      r.notes?.trim() || '-',
+    ];
   });
 
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `rekap_pengiriman_jkt_smg_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCsvFile(`rekap_pengiriman_jkt_smg_${getLocalDateStamp()}.csv`, headers, rows);
+}
+
+export function exportReportsToXlsx(reports: DeliveryReport[]): void {
+  const sorted = [...reports].sort((a, b) => a.date.localeCompare(b.date));
+
+  const summaryHeaders = [
+    'Tanggal',
+    'Hari',
+    'JKT Harian (t)',
+    'SMG Harian (t)',
+    'Total Harian (t)',
+    'MTD JKT (t)',
+    'MTD SMG (t)',
+    'Total MTD JKT & SMG (t)',
+    'Mode MTD',
+    'Catatan',
+  ];
+
+  const summaryRows = sorted.map((r) => {
+    const daily = computeDailyTotals(r);
+    const mtdCombined = roundTon(
+      r.mtdCombinedTotal !== undefined
+        ? r.mtdCombinedTotal
+        : r.mtdJktTotal + r.mtdSmgTotal
+    );
+    return [
+      r.date,
+      getCsvDayName(r.date),
+      roundTon(daily.jkt),
+      roundTon(daily.smg),
+      roundTon(daily.combined),
+      roundTon(r.mtdJktTotal),
+      roundTon(r.mtdSmgTotal),
+      mtdCombined,
+      r.mtdMode === 'auto' ? 'Otomatis' : 'Manual',
+      r.notes?.trim() || '-',
+    ];
+  });
+
+  const detailHeaders = [
+    'Tanggal',
+    'Hari',
+    'JKT Project Forming (t)',
+    'JKT Industri (t)',
+    'JKT ISBS Ritel (t)',
+    'JKT Others (t)',
+    'JKT Harian (t)',
+    'SMG Project Forming (t)',
+    'SMG Industri (t)',
+    'SMG ISBS Ritel (t)',
+    'SMG Others (t)',
+    'SMG Harian (t)',
+    'Total Harian JKT & SMG (t)',
+    'MTD JKT Project Forming (t)',
+    'MTD JKT Industri (t)',
+    'MTD JKT ISBS Ritel (t)',
+    'MTD JKT Others (t)',
+    'MTD JKT Total (t)',
+    'MTD SMG Project Forming (t)',
+    'MTD SMG Industri (t)',
+    'MTD SMG ISBS Ritel (t)',
+    'MTD SMG Others (t)',
+    'MTD SMG Total (t)',
+    'Total Delv JKT & SMG (t)',
+    'Mode MTD',
+    'Catatan',
+  ];
+
+  const detailRows = sorted.map((r) => {
+    const daily = computeDailyTotals(r);
+    const mtdCombined = roundTon(
+      r.mtdCombinedTotal !== undefined
+        ? r.mtdCombinedTotal
+        : r.mtdJktTotal + r.mtdSmgTotal
+    );
+    return [
+      r.date,
+      getCsvDayName(r.date),
+      roundTon(r.jktProjectForming),
+      roundTon(r.jktIndustri),
+      roundTon(r.jktIsbsRitel),
+      roundTon(r.jktOthers),
+      roundTon(daily.jkt),
+      roundTon(r.smgProjectForming),
+      roundTon(r.smgIndustri),
+      roundTon(r.smgIsbsRitel),
+      roundTon(r.smgOthers),
+      roundTon(daily.smg),
+      roundTon(daily.combined),
+      roundTon(r.mtdJktProjectForming),
+      roundTon(r.mtdJktIndustri),
+      roundTon(r.mtdJktIsbsRitel),
+      roundTon(r.mtdJktOthers),
+      roundTon(r.mtdJktTotal),
+      roundTon(r.mtdSmgProjectForming),
+      roundTon(r.mtdSmgIndustri),
+      roundTon(r.mtdSmgIsbsRitel),
+      roundTon(r.mtdSmgOthers),
+      roundTon(r.mtdSmgTotal),
+      mtdCombined,
+      r.mtdMode === 'auto' ? 'Otomatis' : 'Manual',
+      r.notes?.trim() || '-',
+    ];
+  });
+
+  downloadXlsxFile(`rekap_pengiriman_jkt_smg_${getLocalDateStamp()}.xlsx`, [
+    {
+      sheetName: 'Ringkasan Harian',
+      headers: summaryHeaders,
+      rows: summaryRows,
+      textColumnIndices: [0, 1, 8, 9],
+    },
+    {
+      sheetName: 'Detail Segmen',
+      headers: detailHeaders,
+      rows: detailRows,
+      textColumnIndices: [0, 1, 24, 25],
+    },
+  ]);
 }
 
 export const INITIAL_NOV_19_SAMPLE: DeliveryReport = {

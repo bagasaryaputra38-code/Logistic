@@ -18,7 +18,12 @@ import {
   DriverLogPayload,
   VALIDATION_LIMITS,
 } from '../types/delivery';
-import { formatIndonesianDate } from '../utils/deliveryCalculations';
+import {
+  downloadCsvFile,
+  downloadXlsxFile,
+  getCsvDayName,
+  getLocalDateStamp,
+} from '../utils/csvExport';
 import { handleFirestoreError, OperationType } from './deliveryService';
 
 const COLLECTION_NAME = 'driver_logs';
@@ -31,6 +36,68 @@ export function getNextDriverNoForDate(
   if (sameDate.length === 0) return 1;
   const maxNo = sameDate.reduce((max, item) => (item.no > max ? item.no : max), 0);
   return Math.min(maxNo + 1, VALIDATION_LIMITS.MAX_DRIVER_NO);
+}
+
+export interface DriverDurationInfo {
+  totalMinutes: number;
+  hours: number;
+  minutes: number;
+  isOvernight: boolean;
+  formatted: string;
+  rangeLabel: string;
+}
+
+export function calculateDriverDuration(
+  jamMasuk?: string | null,
+  jamKeluar?: string | null
+): DriverDurationInfo | null {
+  const masuk = (jamMasuk || '').trim();
+  const keluar = (jamKeluar || '').trim();
+
+  if (!VALIDATION_LIMITS.TIME_REGEX.test(masuk) || !VALIDATION_LIMITS.TIME_REGEX.test(keluar)) {
+    return null;
+  }
+
+  const [inH, inM] = masuk.split(':').map(Number);
+  const [outH, outM] = keluar.split(':').map(Number);
+  const masukTotal = inH * 60 + inM;
+  const keluarTotal = outH * 60 + outM;
+
+  const isOvernight = keluarTotal < masukTotal;
+  const totalMinutes = isOvernight
+    ? 24 * 60 - masukTotal + keluarTotal
+    : keluarTotal - masukTotal;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  let formatted: string;
+  if (hours > 0 && minutes > 0) {
+    formatted = `${hours} jam ${minutes} mnt`;
+  } else if (hours > 0) {
+    formatted = `${hours} jam`;
+  } else {
+    formatted = `${minutes} mnt`;
+  }
+
+  return {
+    totalMinutes,
+    hours,
+    minutes,
+    isOvernight,
+    formatted,
+    rangeLabel: `${masuk} - ${keluar}`,
+  };
+}
+
+export function formatAverageDurationMinutes(totalMinutesAvg: number): string {
+  if (!Number.isFinite(totalMinutesAvg) || totalMinutesAvg < 0) return '-';
+  const rounded = Math.round(totalMinutesAvg);
+  const hours = Math.floor(rounded / 60);
+  const minutes = rounded % 60;
+  if (hours > 0 && minutes > 0) return `${hours} jam ${minutes} mnt`;
+  if (hours > 0) return `${hours} jam`;
+  return `${minutes} mnt`;
 }
 
 function normalizeTime(raw: string): string {
@@ -221,39 +288,100 @@ export async function deleteDriverLogEntry(entryId: string): Promise<void> {
 export function exportDriverLogsCsv(entries: DriverLogEntry[]): void {
   const headers = [
     'No',
-    'Hari / Tanggal',
+    'Tanggal',
+    'Hari',
     'Jam Masuk',
     'Jam Keluar',
+    'Range Waktu',
+    'Durasi',
     'No Mobil',
     'Supir',
     'Jenis Kendaraan',
     'Transporter',
     'Keterangan',
   ];
-  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
-  const rows = entries.map((item) =>
-    [
-      String(item.no),
-      esc(formatIndonesianDate(item.tanggal)),
-      esc(item.jamMasuk || '-'),
-      esc(item.jamKeluar || '-'),
-      esc(item.noMobil),
-      esc(item.supir),
-      esc(item.jenisKendaraan),
-      esc(item.transporter),
-      esc(item.keterangan || ''),
-    ].join(',')
-  );
+  const ordered = [...entries].sort((a, b) => {
+    const dateCmp = a.tanggal.localeCompare(b.tanggal);
+    if (dateCmp !== 0) return dateCmp;
+    return a.no - b.no;
+  });
 
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `data_supir_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const rows = ordered.map((item) => {
+    const dur = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
+    const durText = dur
+      ? `${dur.formatted}${dur.isOvernight ? ' (+1 hari)' : ''}`
+      : '-';
+
+    return [
+      item.no,
+      item.tanggal,
+      getCsvDayName(item.tanggal),
+      item.jamMasuk || '-',
+      item.jamKeluar || '-',
+      dur ? dur.rangeLabel : '-',
+      durText,
+      item.noMobil,
+      item.supir,
+      item.jenisKendaraan,
+      item.transporter,
+      item.keterangan || '-',
+    ];
+  });
+
+  downloadCsvFile(`data_supir_${getLocalDateStamp()}.csv`, headers, rows);
+}
+
+export function exportDriverLogsXlsx(entries: DriverLogEntry[]): void {
+  const headers = [
+    'No',
+    'Tanggal',
+    'Hari',
+    'Jam Masuk',
+    'Jam Keluar',
+    'Range Waktu',
+    'Durasi',
+    'No Mobil',
+    'Supir',
+    'Jenis Kendaraan',
+    'Transporter',
+    'Keterangan',
+  ];
+
+  const ordered = [...entries].sort((a, b) => {
+    const dateCmp = a.tanggal.localeCompare(b.tanggal);
+    if (dateCmp !== 0) return dateCmp;
+    return a.no - b.no;
+  });
+
+  const rows = ordered.map((item) => {
+    const dur = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
+    const durText = dur
+      ? `${dur.formatted}${dur.isOvernight ? ' (+1 hari)' : ''}`
+      : '-';
+
+    return [
+      item.no,
+      item.tanggal,
+      getCsvDayName(item.tanggal),
+      item.jamMasuk || '-',
+      item.jamKeluar || '-',
+      dur ? dur.rangeLabel : '-',
+      durText,
+      item.noMobil,
+      item.supir,
+      item.jenisKendaraan,
+      item.transporter,
+      item.keterangan || '-',
+    ];
+  });
+
+  downloadXlsxFile(`data_supir_${getLocalDateStamp()}.xlsx`, [
+    {
+      sheetName: 'Data Supir',
+      headers,
+      rows,
+      textColumnIndices: [1, 2, 3, 4, 5, 6, 7],
+    },
+  ]);
 }

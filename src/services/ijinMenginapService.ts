@@ -18,7 +18,12 @@ import {
   IjinMenginapPayload,
   VALIDATION_LIMITS,
 } from '../types/delivery';
-import { formatIndonesianDate } from '../utils/deliveryCalculations';
+import {
+  downloadCsvFile,
+  downloadXlsxFile,
+  formatCsvDateIndonesian,
+  getLocalDateStamp,
+} from '../utils/csvExport';
 import { handleFirestoreError, OperationType } from './deliveryService';
 
 const COLLECTION_NAME = 'ijin_menginap';
@@ -256,33 +261,74 @@ export function exportIjinMenginapCsv(entries: IjinMenginapEntry[]): void {
     'Diketahui (Sales & Marketing Div)',
     'Disetujui (HA & GS Div.)',
   ];
-  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
-  const rows = entries.map((item) =>
-    [
-      String(item.no),
-      esc(item.tempatSurat || 'Bekasi'),
-      esc(formatIndonesianDate(item.tanggalSurat)),
-      esc(item.namaSupir),
-      esc(item.transporter),
-      esc(item.noPolisi),
-      esc(formatIndonesianDate(item.tanggalMenginap)),
-      esc(item.tanggalMenginapSampai ? formatIndonesianDate(item.tanggalMenginapSampai) : '-'),
-      esc(item.alasanMenginap),
-      esc(item.namaPemohon || ''),
-      esc(item.namaDiketahui || ''),
-      esc(item.namaDisetujui || ''),
-    ].join(',')
-  );
+  const ordered = [...entries].sort((a, b) => {
+    const dateCmp = a.tanggalSurat.localeCompare(b.tanggalSurat);
+    if (dateCmp !== 0) return dateCmp;
+    return a.no - b.no;
+  });
 
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `surat_ijin_menginap_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const rows = ordered.map((item) => [
+    item.no,
+    item.tempatSurat || 'Bekasi',
+    formatCsvDateIndonesian(item.tanggalSurat),
+    item.namaSupir,
+    item.transporter,
+    item.noPolisi,
+    formatCsvDateIndonesian(item.tanggalMenginap),
+    item.tanggalMenginapSampai ? formatCsvDateIndonesian(item.tanggalMenginapSampai) : '-',
+    item.alasanMenginap,
+    item.namaPemohon || '-',
+    item.namaDiketahui || '-',
+    item.namaDisetujui || '-',
+  ]);
+
+  downloadCsvFile(`surat_ijin_menginap_${getLocalDateStamp()}.csv`, headers, rows);
+}
+
+export function exportIjinMenginapXlsx(entries: IjinMenginapEntry[]): void {
+  const headers = [
+    'No',
+    'Tempat Surat',
+    'Tanggal Surat',
+    'Nama Supir',
+    'Transporter',
+    'No Polisi Kendaraan',
+    'Tanggal Menginap',
+    'Sampai Dengan (s/d)',
+    'Alasan Menginap',
+    'Pemohon (Warehouse Div)',
+    'Diketahui (Sales & Marketing Div)',
+    'Disetujui (HA & GS Div.)',
+  ];
+
+  const ordered = [...entries].sort((a, b) => {
+    const dateCmp = a.tanggalSurat.localeCompare(b.tanggalSurat);
+    if (dateCmp !== 0) return dateCmp;
+    return a.no - b.no;
+  });
+
+  const rows = ordered.map((item) => [
+    item.no,
+    item.tempatSurat || 'Bekasi',
+    formatCsvDateIndonesian(item.tanggalSurat),
+    item.namaSupir,
+    item.transporter,
+    item.noPolisi,
+    formatCsvDateIndonesian(item.tanggalMenginap),
+    item.tanggalMenginapSampai ? formatCsvDateIndonesian(item.tanggalMenginapSampai) : '-',
+    item.alasanMenginap,
+    item.namaPemohon || '-',
+    item.namaDiketahui || '-',
+    item.namaDisetujui || '-',
+  ]);
+
+  downloadXlsxFile(`surat_ijin_menginap_${getLocalDateStamp()}.xlsx`, [
+    {
+      sheetName: 'Surat Ijin Menginap',
+      headers,
+      rows,
+      textColumnIndices: [2, 5, 6, 7],
+    },
+  ]);
 }
