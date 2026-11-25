@@ -59,6 +59,9 @@ interface DraftRowInputProps {
   onChange: (raw: string) => void;
   id: string;
   emphasized?: boolean;
+  readOnly?: boolean;
+  badge?: string;
+  hint?: string;
 }
 
 const DraftRowInput: React.FC<DraftRowInputProps> = ({
@@ -67,37 +70,83 @@ const DraftRowInput: React.FC<DraftRowInputProps> = ({
   onChange,
   id,
   emphasized = false,
+  readOnly = false,
+  badge,
+  hint,
 }) => (
-  <div className="flex items-center justify-between gap-3 py-2">
-    <label
-      htmlFor={id}
-      className={`text-xs sm:text-sm ${
-        emphasized ? 'font-semibold text-slate-900' : 'text-slate-700'
-      }`}
-    >
-      {label}
-    </label>
-    <div className="relative w-36 sm:w-40 shrink-0">
-      <input
-        id={id}
-        type="number"
-        min="0"
-        step="any"
-        value={value === 0 ? '' : value}
-        placeholder="0"
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full h-10 pl-3 pr-8 rounded-lg border text-sm font-mono tabular-nums text-right focus:border-blue-600 focus:outline-none ${
-          emphasized
-            ? 'border-slate-300 bg-slate-50 font-semibold text-slate-900 focus:bg-white'
-            : 'border-slate-300 bg-white text-slate-900'
-        }`}
-      />
-      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400 pointer-events-none">
-        t
-      </span>
+  <div className="py-2 space-y-1">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 min-w-0">
+        <label
+          htmlFor={id}
+          className={`text-xs sm:text-sm ${
+            emphasized ? 'font-semibold text-slate-900' : 'text-slate-700'
+          }`}
+        >
+          {label}
+        </label>
+        {badge && (
+          <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-[10px] font-semibold text-blue-700 whitespace-nowrap">
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="relative w-36 sm:w-40 shrink-0">
+        <input
+          id={id}
+          type="number"
+          min="0"
+          step="any"
+          readOnly={readOnly}
+          value={value === 0 ? '' : value}
+          placeholder="0"
+          onChange={(e) => {
+            if (!readOnly) onChange(e.target.value);
+          }}
+          className={`w-full h-10 pl-3 pr-8 rounded-lg border text-sm font-mono tabular-nums text-right focus:outline-none ${
+            readOnly
+              ? 'border-slate-200 bg-slate-100 font-semibold text-slate-800 cursor-default'
+              : emphasized
+                ? 'border-slate-300 bg-slate-50 font-semibold text-slate-900 focus:bg-white focus:border-blue-600'
+                : 'border-slate-300 bg-white text-slate-900 focus:border-blue-600'
+          }`}
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400 pointer-events-none">
+          t
+        </span>
+      </div>
     </div>
+    {hint && (
+      <div className="text-[11px] font-mono tabular-nums text-slate-500 text-right">
+        {hint}
+      </div>
+    )}
   </div>
 );
+
+function computeAutoOthersValues(form: Pick<
+  DeliveryFormState,
+  | 'dailyJktTotal'
+  | 'dailySmgTotal'
+  | 'jktIndustri'
+  | 'jktProjectForming'
+  | 'jktIsbsRitel'
+  | 'smgIndustri'
+  | 'smgProjectForming'
+  | 'smgIsbsRitel'
+>) {
+  const jktOtherRaw =
+    form.dailyJktTotal - form.jktIndustri - form.jktProjectForming - form.jktIsbsRitel;
+  const smgOtherRaw =
+    form.dailySmgTotal - form.smgIndustri - form.smgProjectForming - form.smgIsbsRitel;
+
+  return {
+    jktOthers: roundTon(Math.max(jktOtherRaw, 0)),
+    smgOthers: roundTon(Math.max(smgOtherRaw, 0)),
+    jktRemainderRaw: Math.round(jktOtherRaw * 100) / 100,
+    smgRemainderRaw: Math.round(smgOtherRaw * 100) / 100,
+  };
+}
 
 export const InputFormView: React.FC<InputFormViewProps> = ({
   reports,
@@ -107,6 +156,8 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
 }) => {
   const initialDate = getDefaultNewDate(reports);
   const initialPrev = findPreviousMonthReport(reports, initialDate);
+
+  const [autoOthers, setAutoOthers] = useState<boolean>(true);
 
   const [form, setForm] = useState<DeliveryFormState>(() => {
     const autoMtd = computeAutoMtdFromPrevious(
@@ -161,7 +212,34 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
     return Math.min(num, VALIDATION_LIMITS.MAX_MTD_TON);
   };
 
-  // Update a segment daily field, and if in 'auto' mode, auto-compute MTD & TODAY fields synchronously
+  const applyFormCalculations = (
+    draft: DeliveryFormState,
+    prevReport: DeliveryReport | null,
+    useAutoOthers: boolean,
+    preserveTodayTotals: boolean
+  ): DeliveryFormState => {
+    let next = { ...draft };
+
+    if (useAutoOthers) {
+      const autoOthersVals = computeAutoOthersValues(next);
+      next.jktOthers = autoOthersVals.jktOthers;
+      next.smgOthers = autoOthersVals.smgOthers;
+    }
+
+    if (next.mtdMode === 'auto') {
+      const autoMtd = computeAutoMtdFromPrevious(next, prevReport);
+      next = {
+        ...next,
+        ...autoMtd,
+        dailyJktTotal: preserveTodayTotals ? next.dailyJktTotal : autoMtd.dailyJktTotal,
+        dailySmgTotal: preserveTodayTotals ? next.dailySmgTotal : autoMtd.dailySmgTotal,
+      };
+    }
+
+    return next;
+  };
+
+  // Update a segment daily field, auto-recomputing Others (when autoOthers is ON) and MTD (when mtdMode is 'auto')
   const handleDailySegmentChange = (
     field:
       | 'jktProjectForming'
@@ -177,15 +255,12 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
     const val = parseInputNum(raw);
     setForm((prev) => {
       const next = { ...prev, [field]: val };
-      if (next.mtdMode === 'auto') {
-        const auto = computeAutoMtdFromPrevious(next, previousReport);
-        return { ...next, ...auto };
-      }
-      return next;
+      return applyFormCalculations(next, previousReport, autoOthers, autoOthers);
     });
   };
 
-  // Update any TODAY or MTD Total field directly (switches mtdMode to 'manual' so user edits are never overwritten)
+  // Update TODAY or MTD Total fields.
+  // Editing TODAY (dailyJktTotal / dailySmgTotal) keeps mtdMode intact and auto-updates Others.
   const handleDirectTotalChange = (
     field:
       | 'dailyJktTotal'
@@ -205,12 +280,19 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
   ) => {
     const val = parseInputNum(raw);
     setForm((prev) => {
+      if (field === 'dailyJktTotal' || field === 'dailySmgTotal') {
+        const next: DeliveryFormState = {
+          ...prev,
+          [field]: val,
+        };
+        return applyFormCalculations(next, previousReport, autoOthers, true);
+      }
+
       const next: DeliveryFormState = {
         ...prev,
         mtdMode: 'manual',
         [field]: val,
       };
-      // If user updates mtdJktTotal or mtdSmgTotal, automatically keep mtdCombinedTotal synced unless user is directly editing mtdCombinedTotal
       if (field === 'mtdJktTotal' || field === 'mtdSmgTotal') {
         next.mtdCombinedTotal = roundTon(next.mtdJktTotal + next.mtdSmgTotal);
       }
@@ -218,28 +300,26 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
     });
   };
 
+  const handleToggleAutoOthers = (enabled: boolean) => {
+    setAutoOthers(enabled);
+    if (enabled) {
+      setForm((prev) => applyFormCalculations(prev, previousReport, true, true));
+    }
+  };
+
   const handleDateChange = (newDate: string) => {
     const prevForNewDate = findPreviousMonthReport(reports, newDate);
     setForm((prev) => {
       const next = { ...prev, date: newDate };
-      if (next.mtdMode === 'auto') {
-        const auto = computeAutoMtdFromPrevious(next, prevForNewDate);
-        return { ...next, ...auto };
-      }
-      return next;
+      return applyFormCalculations(next, prevForNewDate, autoOthers, autoOthers);
     });
   };
 
   const handleModeSwitch = (mode: MtdMode) => {
     if (mode === 'auto') {
-      setForm((prev) => {
-        const auto = computeAutoMtdFromPrevious(prev, previousReport);
-        return {
-          ...prev,
-          mtdMode: 'auto',
-          ...auto,
-        };
-      });
+      setForm((prev) =>
+        applyFormCalculations({ ...prev, mtdMode: 'auto' }, previousReport, autoOthers, autoOthers)
+      );
     } else {
       setForm((prev) => ({
         ...prev,
@@ -275,6 +355,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
   };
 
   const handleResetZero = () => {
+    setAutoOthers(true);
     setForm((prev) => ({
       ...prev,
       dailyJktTotal: 0,
@@ -309,6 +390,19 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
       setWaFeedback({ type: 'err', msg: result.error || 'Gagal memproses teks.' });
       return;
     }
+    const mergedForAutoCheck: DeliveryFormState = {
+      ...form,
+      ...result.data,
+    };
+    const autoCheck = computeAutoOthersValues(mergedForAutoCheck);
+    const hasCustomOthersFromWa =
+      (result.data.jktOthers !== undefined && result.data.jktOthers !== autoCheck.jktOthers) ||
+      (result.data.smgOthers !== undefined && result.data.smgOthers !== autoCheck.smgOthers);
+
+    if (hasCustomOthersFromWa) {
+      setAutoOthers(false);
+    }
+
     setForm((prev) => {
       const merged: DeliveryFormState = {
         ...prev,
@@ -320,6 +414,11 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
       }
       if (result.data.dailySmgTotal === undefined) {
         merged.dailySmgTotal = seg.smg;
+      }
+      if (!hasCustomOthersFromWa && autoOthers) {
+        const computedOthers = computeAutoOthersValues(merged);
+        if (result.data.jktOthers === undefined) merged.jktOthers = computedOthers.jktOthers;
+        if (result.data.smgOthers === undefined) merged.smgOthers = computedOthers.smgOthers;
       }
       if (result.data.mtdJktTotal === undefined) {
         merged.mtdJktTotal = roundTon(
@@ -375,6 +474,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
   const indCombined = roundTon(form.mtdJktIndustri + form.mtdSmgIndustri);
   const isbsCombined = roundTon(form.mtdJktIsbsRitel + form.mtdSmgIsbsRitel);
   const othersCombined = roundTon(form.mtdJktOthers + form.mtdSmgOthers);
+  const autoOthersPreview = computeAutoOthersValues(form);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -762,14 +862,40 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
           {/* Others */}
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
             <div>
-              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-900">Others</h3>
+                <div className="inline-flex items-center gap-1 p-0.5 bg-slate-200/70 rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAutoOthers(true)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
+                      autoOthers
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Otomatis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAutoOthers(false)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
+                      !autoOthers
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
               </div>
               <div className="px-5 py-2 divide-y divide-slate-100">
                 <DraftRowInput
                   id="oth-jkt"
                   label="Others (Jkt)"
                   value={form.jktOthers}
+                  readOnly={autoOthers}
+                  badge={autoOthers ? 'Otomatis' : undefined}
                   onChange={(v) => handleDailySegmentChange('jktOthers', v)}
                 />
                 <DraftRowInput
@@ -782,6 +908,8 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="oth-smg"
                   label="Others (Smg)"
                   value={form.smgOthers}
+                  readOnly={autoOthers}
+                  badge={autoOthers ? 'Otomatis' : undefined}
                   onChange={(v) => handleDailySegmentChange('smgOthers', v)}
                 />
                 <DraftRowInput
@@ -791,6 +919,31 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   onChange={(v) => handleDirectTotalChange('mtdSmgOthers', v)}
                 />
               </div>
+
+              {autoOthers &&
+                (autoOthersPreview.jktRemainderRaw < 0 ||
+                  autoOthersPreview.smgRemainderRaw < 0) && (
+                  <div className="mx-5 mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800 space-y-0.5">
+                    {autoOthersPreview.jktRemainderRaw < 0 && (
+                      <div>
+                        Total Industri + Project + ISBS (Jkt) melebihi TODAY Jkt sebesar{' '}
+                        <strong className="font-mono">
+                          {formatNumber(Math.abs(autoOthersPreview.jktRemainderRaw))} t
+                        </strong>
+                        , Others (Jkt) diset ke 0.
+                      </div>
+                    )}
+                    {autoOthersPreview.smgRemainderRaw < 0 && (
+                      <div>
+                        Total Industri + Project + ISBS (Smg) melebihi TODAY Smg sebesar{' '}
+                        <strong className="font-mono">
+                          {formatNumber(Math.abs(autoOthersPreview.smgRemainderRaw))} t
+                        </strong>
+                        , Others (Smg) diset ke 0.
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
             <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-sm">
               <span className="font-semibold text-slate-800">Total Delv Others Jkt&amp;Smg</span>
