@@ -10,7 +10,6 @@ import {
   Menu,
   Plus,
   RefreshCw,
-  Truck,
   UserCheck,
   X,
 } from 'lucide-react';
@@ -787,17 +786,13 @@ function MainApp() {
     <div className="min-h-screen bg-slate-50 flex text-slate-900 print:block print:min-h-0 print:bg-white">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-slate-200 no-print">
-        <div className="h-16 px-5 flex items-center gap-2.5 border-b border-slate-200">
-          <div className="w-8 h-8 rounded-lg bg-blue-700 text-white flex items-center justify-center shrink-0">
-            <Truck className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 leading-tight">
-            <div className="font-bold text-base tracking-tight text-slate-900 whitespace-nowrap">
-              LOGISTIC FUMIRA
-            </div>
-            <div className="text-[11px] italic font-medium text-slate-500 whitespace-nowrap">
-              Delivering On Time, Every Time.
-            </div>
+        <div className="h-16 px-4 flex items-center border-b border-slate-200">
+          <div className="h-12 w-48 overflow-hidden flex items-center justify-center shrink-0">
+            <img
+              src="/assets/aistudio/image_fccbe718.png"
+              alt="LOGISTIC FUMIRA"
+              className="w-full h-full object-cover object-center"
+            />
           </div>
         </div>
 
@@ -881,19 +876,13 @@ function MainApp() {
             onClick={() => setMobileMenuOpen(false)}
           />
           <div className="relative w-72 max-w-[85vw] bg-white h-full flex flex-col border-r border-slate-200 z-10">
-            <div className="h-16 px-5 flex items-center justify-between border-b border-slate-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-700 text-white flex items-center justify-center shrink-0">
-                  <Truck className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 leading-tight">
-                  <div className="font-bold text-base text-slate-900 whitespace-nowrap">
-                    LOGISTIC FUMIRA
-                  </div>
-                  <div className="text-[11px] italic font-medium text-slate-500 whitespace-nowrap">
-                    Delivering On Time, Every Time.
-                  </div>
-                </div>
+            <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200">
+              <div className="h-12 w-44 overflow-hidden flex items-center justify-center shrink-0">
+                <img
+                  src="/assets/aistudio/image_fccbe718.png"
+                  alt="LOGISTIC FUMIRA"
+                  className="w-full h-full object-cover object-center"
+                />
               </div>
               <button
                 type="button"

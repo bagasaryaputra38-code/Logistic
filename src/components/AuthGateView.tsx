@@ -23,7 +23,6 @@ import {
   Phone,
   RefreshCw,
   ShieldCheck,
-  Truck,
   User as UserIcon,
 } from 'lucide-react';
 import { auth, googleProvider, setSheetsAccessToken } from '../firebase';
@@ -385,17 +384,18 @@ export const AuthGateView: React.FC<AuthGateViewProps> = ({
         {/* Left Operations Brand Panel */}
         <div className="lg:col-span-5 bg-slate-900 text-white p-7 sm:p-10 flex flex-col justify-between gap-8">
           <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                <Truck className="w-5 h-5" />
+            <div className="space-y-2.5">
+              <div className="inline-flex items-center bg-white rounded-xl px-3.5 py-2 shadow-sm">
+                <div className="h-12 w-48 overflow-hidden flex items-center justify-center">
+                  <img
+                    src="/assets/aistudio/image_fccbe718.png"
+                    alt="LOGISTIC FUMIRA"
+                    className="w-full h-full object-cover object-center"
+                  />
+                </div>
               </div>
-              <div className="leading-tight">
-                <div className="text-lg font-bold tracking-tight whitespace-nowrap">
-                  LOGISTIC FUMIRA
-                </div>
-                <div className="text-xs italic font-medium text-slate-300 whitespace-nowrap">
-                  Delivering On Time, Every Time.
-                </div>
+              <div className="text-xs italic font-medium text-slate-300">
+                Delivering On Time, Every Time.
               </div>
             </div>
 
