@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -62,7 +62,12 @@ interface DraftRowInputProps {
   readOnly?: boolean;
   badge?: string;
   hint?: string;
+  containGroup?: number;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
+
+const NUMBER_INPUT_NO_SPINNER_CLASS =
+  '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
 
 const DraftRowInput: React.FC<DraftRowInputProps> = ({
   label,
@@ -73,6 +78,8 @@ const DraftRowInput: React.FC<DraftRowInputProps> = ({
   readOnly = false,
   badge,
   hint,
+  containGroup,
+  onKeyDown,
 }) => (
   <div className="py-2 space-y-1">
     <div className="flex items-center justify-between gap-3">
@@ -95,20 +102,29 @@ const DraftRowInput: React.FC<DraftRowInputProps> = ({
         <input
           id={id}
           type="number"
+          inputMode="decimal"
           min="0"
           step="any"
+          autoComplete="off"
           readOnly={readOnly}
+          tabIndex={readOnly ? -1 : 0}
+          data-contain-group={containGroup}
           value={value === 0 ? '' : value}
           placeholder="0"
+          onFocus={(e) => {
+            if (!readOnly) e.currentTarget.select();
+          }}
+          onWheel={(e) => e.currentTarget.blur()}
+          onKeyDown={onKeyDown}
           onChange={(e) => {
             if (!readOnly) onChange(e.target.value);
           }}
-          className={`w-full h-10 pl-3 pr-8 rounded-lg border text-sm font-mono tabular-nums text-right focus:outline-none ${
+          className={`w-full h-10 pl-3 pr-8 rounded-lg border text-sm font-mono tabular-nums text-right focus:outline-none ${NUMBER_INPUT_NO_SPINNER_CLASS} ${
             readOnly
               ? 'border-slate-200 bg-slate-100 font-semibold text-slate-800 cursor-default'
               : emphasized
-                ? 'border-slate-300 bg-slate-50 font-semibold text-slate-900 focus:bg-white focus:border-blue-600'
-                : 'border-slate-300 bg-white text-slate-900 focus:border-blue-600'
+                ? 'border-slate-300 bg-slate-50 font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100'
+                : 'border-slate-300 bg-white text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100'
           }`}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400 pointer-events-none">
@@ -158,6 +174,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
   const initialPrev = findPreviousMonthReport(reports, initialDate);
 
   const [autoOthers, setAutoOthers] = useState<boolean>(true);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const [form, setForm] = useState<DeliveryFormState>(() => {
     const autoMtd = computeAutoMtdFromPrevious(
@@ -470,6 +487,83 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
     }
   };
 
+  const focusFirstInputInContainer = (targetGroup: number) => {
+    const root = formRef.current;
+    if (!root) return false;
+    const candidates = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        `[data-contain-group="${targetGroup}"]:not([readonly]):not([disabled])`
+      )
+    ).filter((el) => el.tabIndex !== -1);
+    if (candidates.length > 0) {
+      candidates[0].focus();
+      return true;
+    }
+    return false;
+  };
+
+  const focusAdjacentField = (current: HTMLElement, direction: 1 | -1) => {
+    const root = formRef.current;
+    if (!root) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), button[type="submit"]:not([disabled])'
+      )
+    ).filter((el) => el.tabIndex !== -1);
+    const idx = focusables.indexOf(current);
+    if (idx === -1) return;
+    const nextEl = focusables[idx + direction];
+    if (nextEl) {
+      nextEl.focus();
+    }
+  };
+
+  const handleFieldKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    containGroup: number
+  ) => {
+    const target = e.currentTarget;
+    const isTextarea = target.tagName === 'TEXTAREA';
+    const isNumberInput =
+      target instanceof HTMLInputElement && target.type === 'number';
+
+    if (
+      e.key === 'PageDown' ||
+      ((e.altKey || e.ctrlKey) && (e.key === 'ArrowDown' || e.key === 'ArrowRight'))
+    ) {
+      e.preventDefault();
+      for (let g = containGroup + 1; g <= 6; g += 1) {
+        if (focusFirstInputInContainer(g)) return;
+      }
+      const submitBtn = formRef.current?.querySelector<HTMLButtonElement>(
+        'button[type="submit"]:not([disabled])'
+      );
+      submitBtn?.focus();
+      return;
+    }
+
+    if (
+      e.key === 'PageUp' ||
+      ((e.altKey || e.ctrlKey) && (e.key === 'ArrowUp' || e.key === 'ArrowLeft'))
+    ) {
+      e.preventDefault();
+      for (let g = containGroup - 1; g >= 0; g -= 1) {
+        if (focusFirstInputInContainer(g)) return;
+      }
+      return;
+    }
+
+    if (isNumberInput && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === 'Enter' && !isTextarea) {
+      e.preventDefault();
+      focusAdjacentField(target, e.shiftKey ? -1 : 1);
+    }
+  };
+
   const pfCombined = roundTon(form.mtdJktProjectForming + form.mtdSmgProjectForming);
   const indCombined = roundTon(form.mtdJktIndustri + form.mtdSmgIndustri);
   const isbsCombined = roundTon(form.mtdJktIsbsRitel + form.mtdSmgIsbsRitel);
@@ -482,16 +576,17 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
       <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900">
-            Input Data Pengiriman Harian
+            Input Delivery Harian
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Susunan input disamakan dengan draft laporan harian (TODAY, Project forming, Industri, ISBS Ritel, Others). Data yang tersimpan bersifat final.
+            Susunan input disamakan dengan draft laporan harian (TODAY, Project forming, Industri, ISBS Ritel, Others). Gunakan <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Tab</kbd> / <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Enter</kbd> untuk pindah kolom atau <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Alt+↓/↑</kbd> untuk loncat antar container.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
+            tabIndex={-1}
             onClick={handleResetZero}
             className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap cursor-pointer"
           >
@@ -500,6 +595,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
           </button>
           <button
             type="button"
+            tabIndex={-1}
             onClick={() => setShowWaImporter((v) => !v)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-slate-50 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-100 transition-colors whitespace-nowrap cursor-pointer"
           >
@@ -570,7 +666,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit} autoComplete="off" className="space-y-6">
         {formError && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-2.5 text-sm text-red-800">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -578,8 +674,12 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
           </div>
         )}
 
-        {/* Date & Calculation Mode Header */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+        {/* Date & Calculation Mode Header (Container 0) */}
+        <section
+          role="region"
+          aria-label="Tanggal Laporan dan Mode Perhitungan"
+          className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center"
+        >
           <div className="lg:col-span-5 space-y-1.5">
             <label htmlFor="report-date" className="block text-xs font-semibold text-slate-700">
               Informasi delv hari (Tanggal Laporan)
@@ -588,9 +688,12 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
               id="report-date"
               type="date"
               required
+              autoComplete="off"
+              data-contain-group={0}
               value={form.date}
+              onKeyDown={(e) => handleFieldKeyDown(e, 0)}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+              className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
             />
             <p className="text-xs text-slate-600 font-medium">
               {formatIndonesianDate(form.date)}
@@ -605,6 +708,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
               <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => handleModeSwitch('auto')}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                     form.mtdMode === 'auto'
@@ -616,6 +720,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => handleModeSwitch('manual')}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                     form.mtdMode === 'manual'
@@ -654,10 +759,14 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* BLOK TODAY (Sesuai Draft: Jkt, Total Jkt, Smg, Total Smg, Total Delv Jkt&Smg) */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        {/* BLOK TODAY (Container 1) */}
+        <section
+          role="region"
+          aria-label="TODAY"
+          className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl overflow-hidden"
+        >
           <div className="px-5 py-3.5 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold tracking-wide">TODAY</h3>
@@ -667,6 +776,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
             </div>
             <button
               type="button"
+              tabIndex={-1}
               onClick={handleSyncTodayFromSegments}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-medium rounded-lg transition-colors self-start sm:self-auto cursor-pointer"
             >
@@ -681,12 +791,16 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 id="today-jkt"
                 label="Jkt"
                 value={form.dailyJktTotal}
+                containGroup={1}
+                onKeyDown={(e) => handleFieldKeyDown(e, 1)}
                 onChange={(v) => handleDirectTotalChange('dailyJktTotal', v)}
               />
               <DraftRowInput
                 id="today-total-jkt"
                 label="Total Jkt"
                 value={form.mtdJktTotal}
+                containGroup={1}
+                onKeyDown={(e) => handleFieldKeyDown(e, 1)}
                 onChange={(v) => handleDirectTotalChange('mtdJktTotal', v)}
                 emphasized
               />
@@ -697,12 +811,16 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 id="today-smg"
                 label="Smg"
                 value={form.dailySmgTotal}
+                containGroup={1}
+                onKeyDown={(e) => handleFieldKeyDown(e, 1)}
                 onChange={(v) => handleDirectTotalChange('dailySmgTotal', v)}
               />
               <DraftRowInput
                 id="today-total-smg"
                 label="Total Smg"
                 value={form.mtdSmgTotal}
+                containGroup={1}
+                onKeyDown={(e) => handleFieldKeyDown(e, 1)}
                 onChange={(v) => handleDirectTotalChange('mtdSmgTotal', v)}
                 emphasized
               />
@@ -720,24 +838,34 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
               <input
                 id="today-total-combined"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="any"
+                autoComplete="off"
+                data-contain-group={1}
                 value={form.mtdCombinedTotal === 0 ? '' : form.mtdCombinedTotal}
                 placeholder="0"
+                onFocus={(e) => e.currentTarget.select()}
+                onWheel={(e) => e.currentTarget.blur()}
+                onKeyDown={(e) => handleFieldKeyDown(e, 1)}
                 onChange={(e) => handleDirectTotalChange('mtdCombinedTotal', e.target.value)}
-                className="w-full h-11 pl-3 pr-8 rounded-lg border border-blue-300 bg-white text-base font-bold font-mono tabular-nums text-right text-blue-950 focus:border-blue-600 focus:outline-none"
+                className={`w-full h-11 pl-3 pr-8 rounded-lg border border-blue-300 bg-white text-base font-bold font-mono tabular-nums text-right text-blue-950 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none ${NUMBER_INPUT_NO_SPINNER_CLASS}`}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500 pointer-events-none">
                 t
               </span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* 4 SEGMENT BLOCKS (Sesuai Draft: Project forming, Industri, ISBS Ritel, Others) */}
+        {/* 4 SEGMENT BLOCKS (Containers 2..5) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Note : Project forming */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
+          {/* Note : Project forming (Container 2) */}
+          <section
+            role="region"
+            aria-label="Note Project forming"
+            className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl overflow-hidden flex flex-col justify-between"
+          >
             <div>
               <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-900">Note : Project forming</h3>
@@ -747,24 +875,32 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="pf-jkt"
                   label="Project forming(Jkt)"
                   value={form.jktProjectForming}
+                  containGroup={2}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 2)}
                   onChange={(v) => handleDailySegmentChange('jktProjectForming', v)}
                 />
                 <DraftRowInput
                   id="pf-mtd-jkt"
                   label="Total Project forming(Jkt)"
                   value={form.mtdJktProjectForming}
+                  containGroup={2}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 2)}
                   onChange={(v) => handleDirectTotalChange('mtdJktProjectForming', v)}
                 />
                 <DraftRowInput
                   id="pf-smg"
                   label="Project forming(Smg)"
                   value={form.smgProjectForming}
+                  containGroup={2}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 2)}
                   onChange={(v) => handleDailySegmentChange('smgProjectForming', v)}
                 />
                 <DraftRowInput
                   id="pf-mtd-smg"
                   label="Total Project forming (Smg)"
                   value={form.mtdSmgProjectForming}
+                  containGroup={2}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 2)}
                   onChange={(v) => handleDirectTotalChange('mtdSmgProjectForming', v)}
                 />
               </div>
@@ -775,10 +911,14 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 {formatNumber(pfCombined)} t
               </span>
             </div>
-          </div>
+          </section>
 
-          {/* Note : Industri */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
+          {/* Note : Industri (Container 3) */}
+          <section
+            role="region"
+            aria-label="Note Industri"
+            className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl overflow-hidden flex flex-col justify-between"
+          >
             <div>
               <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-900">Note : Industri</h3>
@@ -788,24 +928,32 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="ind-jkt"
                   label="Industri (Jkt)"
                   value={form.jktIndustri}
+                  containGroup={3}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 3)}
                   onChange={(v) => handleDailySegmentChange('jktIndustri', v)}
                 />
                 <DraftRowInput
                   id="ind-mtd-jkt"
                   label="Total Industri (Jkt)"
                   value={form.mtdJktIndustri}
+                  containGroup={3}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 3)}
                   onChange={(v) => handleDirectTotalChange('mtdJktIndustri', v)}
                 />
                 <DraftRowInput
                   id="ind-smg"
                   label="Industri (Smg)"
                   value={form.smgIndustri}
+                  containGroup={3}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 3)}
                   onChange={(v) => handleDailySegmentChange('smgIndustri', v)}
                 />
                 <DraftRowInput
                   id="ind-mtd-smg"
                   label="Total Industri (Smg)"
                   value={form.mtdSmgIndustri}
+                  containGroup={3}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 3)}
                   onChange={(v) => handleDirectTotalChange('mtdSmgIndustri', v)}
                 />
               </div>
@@ -816,10 +964,14 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 {formatNumber(indCombined)} t
               </span>
             </div>
-          </div>
+          </section>
 
-          {/* ISBS Ritel */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
+          {/* ISBS Ritel (Container 4) */}
+          <section
+            role="region"
+            aria-label="ISBS Ritel"
+            className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl overflow-hidden flex flex-col justify-between"
+          >
             <div>
               <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-900">ISBS Ritel</h3>
@@ -829,24 +981,32 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="isbs-jkt"
                   label="ISBS Ritel (Jkt)"
                   value={form.jktIsbsRitel}
+                  containGroup={4}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 4)}
                   onChange={(v) => handleDailySegmentChange('jktIsbsRitel', v)}
                 />
                 <DraftRowInput
                   id="isbs-mtd-jkt"
                   label="Total ISBS Ritel (Jkt)"
                   value={form.mtdJktIsbsRitel}
+                  containGroup={4}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 4)}
                   onChange={(v) => handleDirectTotalChange('mtdJktIsbsRitel', v)}
                 />
                 <DraftRowInput
                   id="isbs-smg"
                   label="ISBS (Smg)"
                   value={form.smgIsbsRitel}
+                  containGroup={4}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 4)}
                   onChange={(v) => handleDailySegmentChange('smgIsbsRitel', v)}
                 />
                 <DraftRowInput
                   id="isbs-mtd-smg"
                   label="Total ISBS (Smg)"
                   value={form.mtdSmgIsbsRitel}
+                  containGroup={4}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 4)}
                   onChange={(v) => handleDirectTotalChange('mtdSmgIsbsRitel', v)}
                 />
               </div>
@@ -857,16 +1017,21 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 {formatNumber(isbsCombined)} t
               </span>
             </div>
-          </div>
+          </section>
 
-          {/* Others */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
+          {/* Others (Container 5) */}
+          <section
+            role="region"
+            aria-label="Others"
+            className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl overflow-hidden flex flex-col justify-between"
+          >
             <div>
               <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-900">Others</h3>
                 <div className="inline-flex items-center gap-1 p-0.5 bg-slate-200/70 rounded-md">
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => handleToggleAutoOthers(true)}
                     className={`px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                       autoOthers
@@ -878,6 +1043,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   </button>
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => handleToggleAutoOthers(false)}
                     className={`px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap ${
                       !autoOthers
@@ -896,12 +1062,16 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   value={form.jktOthers}
                   readOnly={autoOthers}
                   badge={autoOthers ? 'Otomatis' : undefined}
+                  containGroup={5}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDailySegmentChange('jktOthers', v)}
                 />
                 <DraftRowInput
                   id="oth-mtd-jkt"
                   label="Total Others (Jkt)"
                   value={form.mtdJktOthers}
+                  containGroup={5}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDirectTotalChange('mtdJktOthers', v)}
                 />
                 <DraftRowInput
@@ -910,12 +1080,16 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   value={form.smgOthers}
                   readOnly={autoOthers}
                   badge={autoOthers ? 'Otomatis' : undefined}
+                  containGroup={5}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDailySegmentChange('smgOthers', v)}
                 />
                 <DraftRowInput
                   id="oth-mtd-smg"
                   label="Total Others (Smg)"
                   value={form.mtdSmgOthers}
+                  containGroup={5}
+                  onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDirectTotalChange('mtdSmgOthers', v)}
                 />
               </div>
@@ -951,11 +1125,15 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                 {formatNumber(othersCombined)} t
               </span>
             </div>
-          </div>
+          </section>
         </div>
 
-        {/* Notes & Action Bar */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        {/* Notes & Action Bar (Container 6) */}
+        <section
+          role="region"
+          aria-label="Catatan dan Simpan Laporan"
+          className="bg-white border border-slate-200 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 transition-shadow rounded-xl p-5 space-y-4"
+        >
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="report-notes" className="text-xs font-semibold text-slate-700">
@@ -968,17 +1146,21 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
             <textarea
               id="report-notes"
               rows={2}
+              autoComplete="off"
+              data-contain-group={6}
               maxLength={VALIDATION_LIMITS.MAX_NOTES_LENGTH}
               value={form.notes}
+              onKeyDown={(e) => handleFieldKeyDown(e, 6)}
               onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
               placeholder="Contoh: Penyesuaian muatan atau catatan operasional..."
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
             />
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-2 border-t border-slate-200">
             <button
               type="button"
+              tabIndex={-1}
               onClick={onCancel}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
             >
@@ -989,7 +1171,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
             <button
               type="submit"
               disabled={isSaving || Boolean(existingForDate)}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 focus:ring-2 focus:ring-blue-300 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {isSaving ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
@@ -999,7 +1181,7 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
               {isSaving ? 'Menyimpan...' : 'Simpan & Lihat Rekap Otomatis'}
             </button>
           </div>
-        </div>
+        </section>
       </form>
     </div>
   );

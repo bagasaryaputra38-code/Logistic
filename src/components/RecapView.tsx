@@ -112,7 +112,7 @@ export const RecapView: React.FC<RecapViewProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Input Pengiriman Pertama
+            Input Delivery Pertama
           </button>
         </div>
       </div>

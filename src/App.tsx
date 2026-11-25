@@ -715,7 +715,7 @@ function MainApp() {
     },
     {
       id: 'input',
-      label: 'Input Pengiriman',
+      label: 'Input Delivery',
       icon: <Plus className="w-4 h-4" />,
     },
     {
@@ -752,7 +752,7 @@ function MainApp() {
 
   const pageTitleMap: Record<ActiveTab, string> = {
     recap: 'Laporan Rekapitulasi Harian',
-    input: 'Input Pengiriman Harian',
+    input: 'Input Delivery Harian',
     history: 'Riwayat & Tren Bulanan',
     surat_jalan: 'Data Surat Jalan',
     data_supir: 'Input Data Supir & Kendaraan',
@@ -793,7 +793,7 @@ function MainApp() {
           </div>
           <div className="min-w-0 leading-tight">
             <div className="font-bold text-base tracking-tight text-slate-900 whitespace-nowrap">
-              Delivery Logistic
+              LOGISTIC FUMIRA
             </div>
             <div className="text-[11px] italic font-medium text-slate-500 whitespace-nowrap">
               Delivering On Time, Every Time.
@@ -888,7 +888,7 @@ function MainApp() {
                 </div>
                 <div className="min-w-0 leading-tight">
                   <div className="font-bold text-base text-slate-900 whitespace-nowrap">
-                    Delivery Logistic
+                    LOGISTIC FUMIRA
                   </div>
                   <div className="text-[11px] italic font-medium text-slate-500 whitespace-nowrap">
                     Delivering On Time, Every Time.

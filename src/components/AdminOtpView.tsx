@@ -303,7 +303,7 @@ export const AdminOtpView: React.FC<AdminOtpViewProps> = ({
                 req.status === 'otp_issued' &&
                 Boolean(secret?.expiresAtMs && secret.expiresAtMs < Date.now());
               const waMessage = secret
-                ? `Halo ${req.displayName},\n\nBerikut kode OTP Anda untuk masuk ke website Delivery Logistic:\n*${secret.otpCode}*\n\nBerlaku hingga ${formatDateTimeId(secret.expiresAtMs)}.\nJangan bagikan kode ini kepada siapa pun.`
+                ? `Halo ${req.displayName},\n\nBerikut kode OTP Anda untuk masuk ke website LOGISTIC FUMIRA:\n*${secret.otpCode}*\n\nBerlaku hingga ${formatDateTimeId(secret.expiresAtMs)}.\nJangan bagikan kode ini kepada siapa pun.`
                 : '';
 
               return (

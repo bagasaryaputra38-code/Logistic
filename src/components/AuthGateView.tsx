@@ -391,7 +391,7 @@ export const AuthGateView: React.FC<AuthGateViewProps> = ({
               </div>
               <div className="leading-tight">
                 <div className="text-lg font-bold tracking-tight whitespace-nowrap">
-                  Delivery Logistic
+                  LOGISTIC FUMIRA
                 </div>
                 <div className="text-xs italic font-medium text-slate-300 whitespace-nowrap">
                   Delivering On Time, Every Time.
