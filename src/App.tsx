@@ -10,6 +10,7 @@ import {
   Menu,
   Plus,
   RefreshCw,
+  Tv,
   UserCheck,
   X,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { HistoryView } from './components/HistoryView';
 import { IjinMenginapView } from './components/IjinMenginapView';
 import { InputFormView } from './components/InputFormView';
+import { LiveTvView } from './components/LiveTvView';
 import { RecapView } from './components/RecapView';
 import { SuratJalanView } from './components/SuratJalanView';
 import { auth } from './firebase';
@@ -81,6 +83,7 @@ type ActiveTab =
   | 'history'
   | 'surat_jalan'
   | 'data_supir'
+  | 'live_tv'
   | 'ijin_menginap'
   | 'admin_otp';
 
@@ -733,6 +736,13 @@ function MainApp() {
       icon: <UserCheck className="w-4 h-4" />,
     },
     {
+      id: 'live_tv',
+      label: 'Live TV Supir',
+      icon: <Tv className="w-4 h-4" />,
+      pendingCount: driverLogEntries.filter((item) => Boolean(item.jamMasuk && !item.jamKeluar))
+        .length,
+    },
+    {
       id: 'ijin_menginap',
       label: 'Surat Ijin Menginap',
       icon: <BedDouble className="w-4 h-4" />,
@@ -755,6 +765,7 @@ function MainApp() {
     history: 'Riwayat & Tren Bulanan',
     surat_jalan: 'Data Surat Jalan',
     data_supir: 'Input Data Supir & Kendaraan',
+    live_tv: 'Live TV Antrean Supir',
     ijin_menginap: 'Surat Permohonan Ijin Menginap',
     admin_otp: 'Permintaan OTP Pengguna',
   };
@@ -1055,6 +1066,14 @@ function MainApp() {
               onDelete={handleDeleteDriverLog}
               onClearAll={handleClearAllDriverLogs}
               isLoading={isLoadingDriverLogs}
+            />
+          )}
+
+          {activeTab === 'live_tv' && (
+            <LiveTvView
+              entries={driverLogEntries}
+              isLoading={isLoadingDriverLogs}
+              onGoToDataSupir={() => setActiveTab('data_supir')}
             />
           )}
 
