@@ -398,6 +398,12 @@
           "maxLength": 5,
           "pattern": "^(|([01]\\d|2[0-3]):[0-5]\\d)$"
         },
+        "jamSelesaiDo": {
+          "type": "string",
+          "description": "Jam selesai DO (Delivery Order) dalam format HH:mm.",
+          "maxLength": 5,
+          "pattern": "^(|([01]\\d|2[0-3]):[0-5]\\d)$"
+        },
         "jamKeluar": {
           "type": "string",
           "description": "Jam keluar kendaraan/supir dalam format HH:mm.",
@@ -449,6 +455,7 @@
         "no",
         "tanggal",
         "jamMasuk",
+        "jamSelesaiDo",
         "jamKeluar",
         "noMobil",
         "supir",

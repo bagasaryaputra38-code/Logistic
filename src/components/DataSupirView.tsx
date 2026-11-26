@@ -70,6 +70,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
 
   const [tanggal, setTanggal] = useState<string>(todayStr);
   const [jamMasuk, setJamMasuk] = useState<string>(() => getCurrentTimeHHMM());
+  const [jamSelesaiDo, setJamSelesaiDo] = useState<string>('');
   const [jamKeluar, setJamKeluar] = useState<string>('');
   const [noMobil, setNoMobil] = useState<string>('');
   const [supir, setSupir] = useState<string>('');
@@ -125,10 +126,10 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   const hasActiveTimers = useMemo(() => {
-    const hasActiveForm = Boolean(jamMasuk.trim() && !jamKeluar.trim());
+    const hasActiveForm = Boolean(jamMasuk.trim() && (!jamKeluar.trim() || !jamSelesaiDo.trim()));
     const hasActiveRow = entries.some((e) => Boolean(e.jamMasuk && !e.jamKeluar));
     return hasActiveForm || hasActiveRow;
-  }, [entries, jamMasuk, jamKeluar]);
+  }, [entries, jamMasuk, jamSelesaiDo, jamKeluar]);
 
   useEffect(() => {
     if (!hasActiveTimers) return;
@@ -138,6 +139,19 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
     }, 1000);
     return () => window.clearInterval(intervalId);
   }, [hasActiveTimers]);
+
+  const formDoDuration = useMemo(
+    () => calculateDriverDuration(jamMasuk, jamSelesaiDo),
+    [jamMasuk, jamSelesaiDo]
+  );
+
+  const formDoLiveTimer = useMemo(
+    () =>
+      jamSelesaiDo.trim() || jamKeluar.trim()
+        ? null
+        : calculateLiveDriverTimer(tanggal, jamMasuk, nowMs),
+    [tanggal, jamMasuk, jamSelesaiDo, jamKeluar, nowMs]
+  );
 
   const formDuration = useMemo(
     () => calculateDriverDuration(jamMasuk, jamKeluar),
@@ -178,6 +192,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
 
   const resetFormAfterSave = () => {
     setJamMasuk(getCurrentTimeHHMM());
+    setJamSelesaiDo('');
     setJamKeluar('');
     setNoMobil('');
     setSupir('');
@@ -222,6 +237,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
         {
           tanggal,
           jamMasuk: jamMasuk.trim(),
+          jamSelesaiDo: jamSelesaiDo.trim(),
           jamKeluar: jamKeluar.trim(),
           noMobil: noMobil.trim().toUpperCase(),
           supir: supir.trim(),
@@ -252,6 +268,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
     setEditingEntry(entry);
     setTanggal(entry.tanggal);
     setJamMasuk(entry.jamMasuk);
+    setJamSelesaiDo(entry.jamSelesaiDo || '');
     setJamKeluar(entry.jamKeluar);
     setNoMobil(entry.noMobil);
     setSupir(entry.supir);
@@ -266,6 +283,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
     setEditingEntry(null);
     setTanggal(todayStr);
     setJamMasuk(getCurrentTimeHHMM());
+    setJamSelesaiDo('');
     setJamKeluar('');
     setNoMobil('');
     setSupir('');
@@ -275,8 +293,8 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
     setStatusMsg(null);
   };
 
-  const handleQuickClockOut = async (entry: DriverLogEntry) => {
-    setQuickBusyId(entry.id);
+  const handleQuickFinishDo = async (entry: DriverLogEntry) => {
+    setQuickBusyId(`${entry.id}:do`);
     setStatusMsg(null);
     try {
       const nowTime = getCurrentTimeHHMM();
@@ -284,6 +302,31 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
         {
           tanggal: entry.tanggal,
           jamMasuk: entry.jamMasuk,
+          jamSelesaiDo: nowTime,
+          jamKeluar: entry.jamKeluar,
+          noMobil: entry.noMobil,
+          supir: entry.supir,
+          jenisKendaraan: entry.jenisKendaraan,
+          transporter: entry.transporter,
+          keterangan: entry.keterangan,
+        },
+        entry
+      );
+    } finally {
+      setQuickBusyId(null);
+    }
+  };
+
+  const handleQuickClockOut = async (entry: DriverLogEntry) => {
+    setQuickBusyId(`${entry.id}:out`);
+    setStatusMsg(null);
+    try {
+      const nowTime = getCurrentTimeHHMM();
+      await onSave(
+        {
+          tanggal: entry.tanggal,
+          jamMasuk: entry.jamMasuk,
+          jamSelesaiDo: entry.jamSelesaiDo || '',
           jamKeluar: nowTime,
           noMobil: entry.noMobil,
           supir: entry.supir,
@@ -427,112 +470,6 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
               </p>
             </div>
 
-            {/* Jam Masuk */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label
-                  htmlFor="drv-jam-masuk"
-                  className="block text-xs font-semibold text-slate-700"
-                >
-                  Jam Masuk
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setJamMasuk(getCurrentTimeHHMM())}
-                  className="text-[11px] font-medium text-blue-700 hover:underline cursor-pointer"
-                >
-                  Sekarang
-                </button>
-              </div>
-              <input
-                id="drv-jam-masuk"
-                type="time"
-                value={jamMasuk}
-                onChange={(e) => setJamMasuk(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-
-            {/* Jam Keluar */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label
-                  htmlFor="drv-jam-keluar"
-                  className="block text-xs font-semibold text-slate-700"
-                >
-                  Jam Keluar (Opsional)
-                </label>
-                <div className="flex items-center gap-2">
-                  {jamKeluar && (
-                    <button
-                      type="button"
-                      onClick={() => setJamKeluar('')}
-                      className="text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
-                    >
-                      Kosongkan
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setJamKeluar(getCurrentTimeHHMM())}
-                    className="text-[11px] font-medium text-blue-700 hover:underline cursor-pointer"
-                  >
-                    Sekarang
-                  </button>
-                </div>
-              </div>
-              <input
-                id="drv-jam-keluar"
-                type="time"
-                value={jamKeluar}
-                onChange={(e) => setJamKeluar(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
-              />
-              {formDuration ? (
-                <p
-                  className={`text-[11px] font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
-                    formDuration.isOverTwoHours
-                      ? 'bg-red-100/80 border-red-300 text-red-800'
-                      : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      formDuration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
-                    }`}
-                  />
-                  Durasi: {formDuration.formatted} ({formDuration.rangeLabel}
-                  {formDuration.isOvernight ? ', +1 hari' : ''})
-                </p>
-              ) : formLiveTimer ? (
-                formLiveTimer.isPendingStart ? (
-                  <p className="text-[11px] text-slate-500 tabular-nums">
-                    Timer menunggu jam masuk ({jamMasuk})
-                  </p>
-                ) : (
-                  <p
-                    className={`text-[11px] font-mono font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
-                      formLiveTimer.isOverTwoHours
-                        ? 'bg-red-100/80 border-red-300 text-red-800'
-                        : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                        formLiveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
-                      }`}
-                    />
-                    Timer: {formLiveTimer.clockText} (
-                    {formLiveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'})
-                  </p>
-                )
-              ) : (
-                <p className="text-[11px] text-slate-400">
-                  Durasi dihitung otomatis saat jam masuk &amp; keluar terisi
-                </p>
-              )}
-            </div>
-
             {/* No Mobil */}
             <div className="space-y-1.5">
               <label
@@ -572,6 +509,195 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                 onChange={(e) => setSupir(e.target.value)}
                 className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
               />
+            </div>
+
+            {/* Time Fields Row: Jam Masuk, Jam Selesai DO, Jam Keluar */}
+            <div className="sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Jam Masuk */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="drv-jam-masuk"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Jam Masuk
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setJamMasuk(getCurrentTimeHHMM())}
+                    className="text-[11px] font-medium text-blue-700 hover:underline cursor-pointer"
+                  >
+                    Sekarang
+                  </button>
+                </div>
+                <input
+                  id="drv-jam-masuk"
+                  type="time"
+                  value={jamMasuk}
+                  onChange={(e) => setJamMasuk(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Jam Selesai DO */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="drv-jam-selesai-do"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Jam Selesai DO (Opsional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {jamSelesaiDo && (
+                      <button
+                        type="button"
+                        onClick={() => setJamSelesaiDo('')}
+                        className="text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+                      >
+                        Kosongkan
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setJamSelesaiDo(getCurrentTimeHHMM())}
+                      className="text-[11px] font-medium text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Sekarang
+                    </button>
+                  </div>
+                </div>
+                <input
+                  id="drv-jam-selesai-do"
+                  type="time"
+                  value={jamSelesaiDo}
+                  onChange={(e) => setJamSelesaiDo(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                />
+                {formDoDuration ? (
+                  <p
+                    className={`text-[11px] font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                      formDoDuration.isOverTwoHours
+                        ? 'bg-red-100/80 border-red-300 text-red-800'
+                        : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        formDoDuration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                      }`}
+                    />
+                    Durasi DO: {formDoDuration.formatted} ({formDoDuration.rangeLabel}
+                    {formDoDuration.isOvernight ? ', +1 hari' : ''})
+                  </p>
+                ) : formDoLiveTimer ? (
+                  formDoLiveTimer.isPendingStart ? (
+                    <p className="text-[11px] text-slate-500 tabular-nums">
+                      Timer DO menunggu jam masuk ({jamMasuk})
+                    </p>
+                  ) : (
+                    <p
+                      className={`text-[11px] font-mono font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                        formDoLiveTimer.isOverTwoHours
+                          ? 'bg-red-100/80 border-red-300 text-red-800'
+                          : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                          formDoLiveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                        }`}
+                      />
+                      Timer DO: {formDoLiveTimer.clockText} (
+                      {formDoLiveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'})
+                    </p>
+                  )
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Durasi DO dihitung dari Jam Masuk ke Jam Selesai DO
+                  </p>
+                )}
+              </div>
+
+              {/* Jam Keluar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="drv-jam-keluar"
+                    className="block text-xs font-semibold text-slate-700"
+                  >
+                    Jam Keluar (Opsional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {jamKeluar && (
+                      <button
+                        type="button"
+                        onClick={() => setJamKeluar('')}
+                        className="text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+                      >
+                        Kosongkan
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setJamKeluar(getCurrentTimeHHMM())}
+                      className="text-[11px] font-medium text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Sekarang
+                    </button>
+                  </div>
+                </div>
+                <input
+                  id="drv-jam-keluar"
+                  type="time"
+                  value={jamKeluar}
+                  onChange={(e) => setJamKeluar(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                />
+                {formDuration ? (
+                  <p
+                    className={`text-[11px] font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                      formDuration.isOverTwoHours
+                        ? 'bg-red-100/80 border-red-300 text-red-800'
+                        : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        formDuration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                      }`}
+                    />
+                    Durasi: {formDuration.formatted} ({formDuration.rangeLabel}
+                    {formDuration.isOvernight ? ', +1 hari' : ''})
+                  </p>
+                ) : formLiveTimer ? (
+                  formLiveTimer.isPendingStart ? (
+                    <p className="text-[11px] text-slate-500 tabular-nums">
+                      Timer menunggu jam masuk ({jamMasuk})
+                    </p>
+                  ) : (
+                    <p
+                      className={`text-[11px] font-mono font-semibold tabular-nums inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                        formLiveTimer.isOverTwoHours
+                          ? 'bg-red-100/80 border-red-300 text-red-800'
+                          : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                          formLiveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                        }`}
+                      />
+                      Timer: {formLiveTimer.clockText} (
+                      {formLiveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'})
+                    </p>
+                  )
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Durasi dihitung otomatis saat jam masuk &amp; keluar terisi
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Jenis Kendaraan */}
@@ -617,7 +743,7 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
             </div>
 
             {/* Keterangan */}
-            <div className="sm:col-span-2 lg:col-span-4 space-y-1.5">
+            <div className="sm:col-span-2 lg:col-span-2 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label
                   htmlFor="drv-keterangan"
@@ -822,6 +948,8 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                   <th className="py-3 px-4 text-center">No</th>
                   <th className="py-3 px-4">Hari / Tanggal</th>
                   <th className="py-3 px-4">Jam Masuk</th>
+                  <th className="py-3 px-4">Jam Selesai DO</th>
+                  <th className="py-3 px-4">Durasi Timer DO</th>
                   <th className="py-3 px-4">Jam Keluar</th>
                   <th className="py-3 px-4">Durasi Timer</th>
                   <th className="py-3 px-4">No Mobil</th>
@@ -835,7 +963,13 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
               <tbody className="divide-y divide-slate-200 text-sm">
                 {filteredEntries.map((item) => {
                   const isConfirming = confirmDeleteId === item.id;
-                  const isClockBusy = quickBusyId === item.id;
+                  const isDoBusy = quickBusyId === `${item.id}:do`;
+                  const isClockBusy = quickBusyId === `${item.id}:out`;
+                  const doDuration = calculateDriverDuration(item.jamMasuk, item.jamSelesaiDo);
+                  const doLiveTimer =
+                    doDuration || item.jamKeluar
+                      ? null
+                      : calculateLiveDriverTimer(item.tanggal, item.jamMasuk, nowMs);
                   const duration = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
                   const liveTimer = duration
                     ? null
@@ -856,6 +990,85 @@ export const DataSupirView: React.FC<DataSupirViewProps> = ({
                       </td>
                       <td className="py-3 px-4 font-mono tabular-nums text-slate-800 whitespace-nowrap">
                         {item.jamMasuk || '-'}
+                      </td>
+                      <td className="py-3 px-4 font-mono tabular-nums whitespace-nowrap">
+                        {item.jamSelesaiDo ? (
+                          <span className="text-slate-800">{item.jamSelesaiDo}</span>
+                        ) : !item.jamKeluar ? (
+                          <button
+                            type="button"
+                            disabled={isDoBusy}
+                            onClick={() => handleQuickFinishDo(item)}
+                            title="Catat jam selesai DO sekarang"
+                            className="inline-flex items-center gap-1 px-2 py-1 border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-sans font-medium rounded-md hover:bg-emerald-100 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
+                          >
+                            <Clock className="w-3 h-3" />
+                            {isDoBusy ? 'Menyimpan...' : 'Catat Selesai DO'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {doDuration ? (
+                          <div className="space-y-1">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-xs font-semibold tabular-nums ${
+                                doDuration.isOverTwoHours
+                                  ? 'bg-red-100/80 border-red-300 text-red-800'
+                                  : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                              }`}
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  doDuration.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                                }`}
+                              />
+                              {doDuration.formatted}
+                            </span>
+                            <div className="text-xs font-mono tabular-nums text-slate-400">
+                              {doDuration.rangeLabel}
+                              {doDuration.isOvernight ? ' (+1 hari)' : ''}
+                            </div>
+                          </div>
+                        ) : doLiveTimer ? (
+                          doLiveTimer.isPendingStart ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-600 text-xs font-medium">
+                                Menunggu ({item.jamMasuk})
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-xs font-mono font-bold tabular-nums ${
+                                  doLiveTimer.isOverTwoHours
+                                    ? 'bg-red-100/80 border-red-300 text-red-800'
+                                    : 'bg-yellow-100/80 border-yellow-400 text-yellow-900'
+                                }`}
+                              >
+                                <span
+                                  className={`w-2 h-2 rounded-full shrink-0 animate-pulse ${
+                                    doLiveTimer.isOverTwoHours ? 'bg-red-600' : 'bg-yellow-500'
+                                  }`}
+                                />
+                                {doLiveTimer.clockText}
+                              </span>
+                              <div className="text-[11px] text-slate-500 tabular-nums">
+                                Proses DO sejak {item.jamMasuk} ·{' '}
+                                <span
+                                  className={`font-semibold ${
+                                    doLiveTimer.isOverTwoHours ? 'text-red-700' : 'text-yellow-800'
+                                  }`}
+                                >
+                                  {doLiveTimer.isOverTwoHours ? '> 2 jam' : '< 2 jam'}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 font-mono tabular-nums whitespace-nowrap">
                         {item.jamKeluar ? (

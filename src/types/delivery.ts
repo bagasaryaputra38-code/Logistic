@@ -217,6 +217,7 @@ export interface DriverLogPayload {
   no: number;
   tanggal: string;
   jamMasuk: string;
+  jamSelesaiDo: string;
   jamKeluar: string;
   noMobil: string;
   supir: string;
@@ -235,6 +236,7 @@ export interface DriverLogEntry extends DriverLogPayload {
 export interface DriverLogFormState {
   tanggal: string;
   jamMasuk: string;
+  jamSelesaiDo: string;
   jamKeluar: string;
   noMobil: string;
   supir: string;

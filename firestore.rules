@@ -137,12 +137,12 @@ service cloud.firestore {
 
     function isValidDriverLog(data) {
       return data.keys().hasAll([
-        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamSelesaiDo', 'jamKeluar',
         'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
         'createdAt', 'updatedAt'
       ]) &&
       data.keys().hasOnly([
-        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+        'ownerId', 'no', 'tanggal', 'jamMasuk', 'jamSelesaiDo', 'jamKeluar',
         'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
         'createdAt', 'updatedAt'
       ]) &&
@@ -150,6 +150,7 @@ service cloud.firestore {
       data.no is int && data.no >= 1 && data.no <= 100000 &&
       data.tanggal is string && data.tanggal.size() == 10 && data.tanggal.matches('^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$') &&
       data.jamMasuk is string && data.jamMasuk.size() <= 5 && data.jamMasuk.matches('^(|([01]\\d|2[0-3]):[0-5]\\d)$') &&
+      data.jamSelesaiDo is string && data.jamSelesaiDo.size() <= 5 && data.jamSelesaiDo.matches('^(|([01]\\d|2[0-3]):[0-5]\\d)$') &&
       data.jamKeluar is string && data.jamKeluar.size() <= 5 && data.jamKeluar.matches('^(|([01]\\d|2[0-3]):[0-5]\\d)$') &&
       data.noMobil is string && data.noMobil.size() >= 1 && data.noMobil.size() <= 30 &&
       data.supir is string && data.supir.size() >= 1 && data.supir.size() <= 100 &&
@@ -394,7 +395,7 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'no', 'tanggal', 'jamMasuk', 'jamKeluar',
+          'no', 'tanggal', 'jamMasuk', 'jamSelesaiDo', 'jamKeluar',
           'noMobil', 'supir', 'jenisKendaraan', 'transporter', 'keterangan',
           'updatedAt'
         ]);

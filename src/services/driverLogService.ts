@@ -200,6 +200,7 @@ export function sanitizeDriverLogPayload(
 
   const safeNo = Math.min(Math.max(Math.trunc(Number(no) || 1), 1), VALIDATION_LIMITS.MAX_DRIVER_NO);
   const jamMasuk = normalizeTime(form.jamMasuk);
+  const jamSelesaiDo = normalizeTime(form.jamSelesaiDo);
   const jamKeluar = normalizeTime(form.jamKeluar);
 
   const noMobil = (form.noMobil || '')
@@ -227,6 +228,7 @@ export function sanitizeDriverLogPayload(
     no: safeNo,
     tanggal: form.tanggal,
     jamMasuk,
+    jamSelesaiDo,
     jamKeluar,
     noMobil,
     supir,
@@ -262,6 +264,7 @@ export function subscribeSharedDriverLogs(
           no: Math.max(1, Math.trunc(Number(d.no) || 1)),
           tanggal: String(d.tanggal || ''),
           jamMasuk: String(d.jamMasuk || ''),
+          jamSelesaiDo: String(d.jamSelesaiDo || ''),
           jamKeluar: String(d.jamKeluar || ''),
           noMobil: String(d.noMobil || ''),
           supir: String(d.supir || ''),
@@ -368,6 +371,8 @@ export function exportDriverLogsCsv(entries: DriverLogEntry[]): void {
     'Tanggal',
     'Hari',
     'Jam Masuk',
+    'Jam Selesai DO',
+    'Durasi Selesai DO',
     'Jam Keluar',
     'Range Waktu',
     'Durasi',
@@ -385,6 +390,10 @@ export function exportDriverLogsCsv(entries: DriverLogEntry[]): void {
   });
 
   const rows = ordered.map((item) => {
+    const doDur = calculateDriverDuration(item.jamMasuk, item.jamSelesaiDo);
+    const doDurText = doDur
+      ? `${doDur.formatted}${doDur.isOvernight ? ' (+1 hari)' : ''}`
+      : '-';
     const dur = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
     const durText = dur
       ? `${dur.formatted}${dur.isOvernight ? ' (+1 hari)' : ''}`
@@ -395,6 +404,8 @@ export function exportDriverLogsCsv(entries: DriverLogEntry[]): void {
       item.tanggal,
       getCsvDayName(item.tanggal),
       item.jamMasuk || '-',
+      item.jamSelesaiDo || '-',
+      doDurText,
       item.jamKeluar || '-',
       dur ? dur.rangeLabel : '-',
       durText,
@@ -415,6 +426,8 @@ export function exportDriverLogsXlsx(entries: DriverLogEntry[]): void {
     'Tanggal',
     'Hari',
     'Jam Masuk',
+    'Jam Selesai DO',
+    'Durasi Selesai DO',
     'Jam Keluar',
     'Range Waktu',
     'Durasi',
@@ -432,6 +445,10 @@ export function exportDriverLogsXlsx(entries: DriverLogEntry[]): void {
   });
 
   const rows = ordered.map((item) => {
+    const doDur = calculateDriverDuration(item.jamMasuk, item.jamSelesaiDo);
+    const doDurText = doDur
+      ? `${doDur.formatted}${doDur.isOvernight ? ' (+1 hari)' : ''}`
+      : '-';
     const dur = calculateDriverDuration(item.jamMasuk, item.jamKeluar);
     const durText = dur
       ? `${dur.formatted}${dur.isOvernight ? ' (+1 hari)' : ''}`
@@ -442,6 +459,8 @@ export function exportDriverLogsXlsx(entries: DriverLogEntry[]): void {
       item.tanggal,
       getCsvDayName(item.tanggal),
       item.jamMasuk || '-',
+      item.jamSelesaiDo || '-',
+      doDurText,
       item.jamKeluar || '-',
       dur ? dur.rangeLabel : '-',
       durText,
@@ -458,7 +477,7 @@ export function exportDriverLogsXlsx(entries: DriverLogEntry[]): void {
       sheetName: 'Data Supir',
       headers,
       rows,
-      textColumnIndices: [1, 2, 3, 4, 5, 6, 7],
+      textColumnIndices: [1, 2, 3, 4, 5, 6, 7, 8],
     },
   ]);
 }
