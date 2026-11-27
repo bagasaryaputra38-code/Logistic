@@ -536,7 +536,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         <div className="text-xs font-semibold text-slate-200">
                           {entry.jamSelesaiDo
                             ? `DO Selesai (${entry.jamSelesaiDo}) · Menunggu Keluar`
-                            : 'Sedang Proses DO'}
+                            : 'Sedang Proses Loading'}
                         </div>
                         {entry.keterangan && (
                           <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">

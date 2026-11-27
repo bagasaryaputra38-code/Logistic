@@ -150,17 +150,40 @@ function computeAutoOthersValues(form: Pick<
   | 'smgIndustri'
   | 'smgProjectForming'
   | 'smgIsbsRitel'
+  | 'mtdJktTotal'
+  | 'mtdSmgTotal'
+  | 'mtdJktProjectForming'
+  | 'mtdJktIndustri'
+  | 'mtdJktIsbsRitel'
+  | 'mtdSmgProjectForming'
+  | 'mtdSmgIndustri'
+  | 'mtdSmgIsbsRitel'
 >) {
   const jktOtherRaw =
     form.dailyJktTotal - form.jktIndustri - form.jktProjectForming - form.jktIsbsRitel;
   const smgOtherRaw =
     form.dailySmgTotal - form.smgIndustri - form.smgProjectForming - form.smgIsbsRitel;
 
+  const mtdJktOtherRaw =
+    form.mtdJktTotal -
+    form.mtdJktProjectForming -
+    form.mtdJktIndustri -
+    form.mtdJktIsbsRitel;
+  const mtdSmgOtherRaw =
+    form.mtdSmgTotal -
+    form.mtdSmgProjectForming -
+    form.mtdSmgIndustri -
+    form.mtdSmgIsbsRitel;
+
   return {
     jktOthers: roundTon(Math.max(jktOtherRaw, 0)),
     smgOthers: roundTon(Math.max(smgOtherRaw, 0)),
     jktRemainderRaw: Math.round(jktOtherRaw * 100) / 100,
     smgRemainderRaw: Math.round(smgOtherRaw * 100) / 100,
+    mtdJktOthers: roundTon(Math.max(mtdJktOtherRaw, 0)),
+    mtdSmgOthers: roundTon(Math.max(mtdSmgOtherRaw, 0)),
+    mtdJktRemainderRaw: Math.round(mtdJktOtherRaw * 100) / 100,
+    mtdSmgRemainderRaw: Math.round(mtdSmgOtherRaw * 100) / 100,
   };
 }
 
@@ -253,6 +276,12 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
       };
     }
 
+    if (useAutoOthers) {
+      const autoOthersVals = computeAutoOthersValues(next);
+      next.mtdJktOthers = autoOthersVals.mtdJktOthers;
+      next.mtdSmgOthers = autoOthersVals.mtdSmgOthers;
+    }
+
     return next;
   };
 
@@ -312,6 +341,16 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
       };
       if (field === 'mtdJktTotal' || field === 'mtdSmgTotal') {
         next.mtdCombinedTotal = roundTon(next.mtdJktTotal + next.mtdSmgTotal);
+      }
+      if (
+        autoOthers &&
+        field !== 'mtdCombinedTotal' &&
+        field !== 'mtdJktOthers' &&
+        field !== 'mtdSmgOthers'
+      ) {
+        const autoOthersVals = computeAutoOthersValues(next);
+        next.mtdJktOthers = autoOthersVals.mtdJktOthers;
+        next.mtdSmgOthers = autoOthersVals.mtdSmgOthers;
       }
       return next;
     });
@@ -414,7 +453,11 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
     const autoCheck = computeAutoOthersValues(mergedForAutoCheck);
     const hasCustomOthersFromWa =
       (result.data.jktOthers !== undefined && result.data.jktOthers !== autoCheck.jktOthers) ||
-      (result.data.smgOthers !== undefined && result.data.smgOthers !== autoCheck.smgOthers);
+      (result.data.smgOthers !== undefined && result.data.smgOthers !== autoCheck.smgOthers) ||
+      (result.data.mtdJktOthers !== undefined &&
+        result.data.mtdJktOthers !== autoCheck.mtdJktOthers) ||
+      (result.data.mtdSmgOthers !== undefined &&
+        result.data.mtdSmgOthers !== autoCheck.mtdSmgOthers);
 
     if (hasCustomOthersFromWa) {
       setAutoOthers(false);
@@ -436,6 +479,12 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
         const computedOthers = computeAutoOthersValues(merged);
         if (result.data.jktOthers === undefined) merged.jktOthers = computedOthers.jktOthers;
         if (result.data.smgOthers === undefined) merged.smgOthers = computedOthers.smgOthers;
+        if (result.data.mtdJktOthers === undefined && result.data.mtdJktTotal !== undefined) {
+          merged.mtdJktOthers = computedOthers.mtdJktOthers;
+        }
+        if (result.data.mtdSmgOthers === undefined && result.data.mtdSmgTotal !== undefined) {
+          merged.mtdSmgOthers = computedOthers.mtdSmgOthers;
+        }
       }
       if (result.data.mtdJktTotal === undefined) {
         merged.mtdJktTotal = roundTon(
@@ -1070,6 +1119,8 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="oth-mtd-jkt"
                   label="Total Others (Jkt)"
                   value={form.mtdJktOthers}
+                  readOnly={autoOthers}
+                  badge={autoOthers ? 'Otomatis' : undefined}
                   containGroup={5}
                   onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDirectTotalChange('mtdJktOthers', v)}
@@ -1088,6 +1139,8 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                   id="oth-mtd-smg"
                   label="Total Others (Smg)"
                   value={form.mtdSmgOthers}
+                  readOnly={autoOthers}
+                  badge={autoOthers ? 'Otomatis' : undefined}
                   containGroup={5}
                   onKeyDown={(e) => handleFieldKeyDown(e, 5)}
                   onChange={(v) => handleDirectTotalChange('mtdSmgOthers', v)}
@@ -1096,7 +1149,9 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
 
               {autoOthers &&
                 (autoOthersPreview.jktRemainderRaw < 0 ||
-                  autoOthersPreview.smgRemainderRaw < 0) && (
+                  autoOthersPreview.smgRemainderRaw < 0 ||
+                  autoOthersPreview.mtdJktRemainderRaw < 0 ||
+                  autoOthersPreview.mtdSmgRemainderRaw < 0) && (
                   <div className="mx-5 mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800 space-y-0.5">
                     {autoOthersPreview.jktRemainderRaw < 0 && (
                       <div>
@@ -1107,6 +1162,15 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                         , Others (Jkt) diset ke 0.
                       </div>
                     )}
+                    {autoOthersPreview.mtdJktRemainderRaw < 0 && (
+                      <div>
+                        Total Project forming + Industri + ISBS Ritel (Jkt) melebihi Total Jkt sebesar{' '}
+                        <strong className="font-mono">
+                          {formatNumber(Math.abs(autoOthersPreview.mtdJktRemainderRaw))} t
+                        </strong>
+                        , Total Others (Jkt) diset ke 0.
+                      </div>
+                    )}
                     {autoOthersPreview.smgRemainderRaw < 0 && (
                       <div>
                         Total Industri + Project + ISBS (Smg) melebihi TODAY Smg sebesar{' '}
@@ -1114,6 +1178,15 @@ export const InputFormView: React.FC<InputFormViewProps> = ({
                           {formatNumber(Math.abs(autoOthersPreview.smgRemainderRaw))} t
                         </strong>
                         , Others (Smg) diset ke 0.
+                      </div>
+                    )}
+                    {autoOthersPreview.mtdSmgRemainderRaw < 0 && (
+                      <div>
+                        Total Project forming + Industri + ISBS Ritel (Smg) melebihi Total Smg sebesar{' '}
+                        <strong className="font-mono">
+                          {formatNumber(Math.abs(autoOthersPreview.mtdSmgRemainderRaw))} t
+                        </strong>
+                        , Total Others (Smg) diset ke 0.
                       </div>
                     )}
                   </div>
