@@ -26,6 +26,7 @@ import { RecapView } from './components/RecapView';
 import { SuratJalanView } from './components/SuratJalanView';
 import { auth } from './firebase';
 import {
+  deleteDeliveryReport,
   saveDeliveryReport,
   subscribeSharedReports,
 } from './services/deliveryService';
@@ -480,6 +481,19 @@ function MainApp() {
       setActiveTab('recap');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteReport = async (report: DeliveryReport) => {
+    if (user && !isAdmin) {
+      throw new Error('Hanya administrator yang memiliki izin untuk menghapus data delivery.');
+    }
+    if (user && !report.isSample) {
+      await deleteDeliveryReport(report.id);
+      showToast(`Data delivery tanggal ${report.date} berhasil dihapus.`);
+    } else {
+      setLocalReports((prev) => prev.filter((item) => item.id !== report.id));
+      showToast(`Data delivery tanggal ${report.date} dihapus dari pratinjau.`);
     }
   };
 
@@ -1061,6 +1075,8 @@ function MainApp() {
               onSelectDate={(date) => setSelectedDate(date)}
               onNewReport={openNewInput}
               isLoading={isLoadingData}
+              isAdmin={isAdmin}
+              onDeleteReport={isAdmin ? handleDeleteReport : undefined}
             />
           )}
 
@@ -1083,6 +1099,8 @@ function MainApp() {
                 setActiveTab('recap');
               }}
               onNewReport={openNewInput}
+              isAdmin={isAdmin}
+              onDeleteReport={isAdmin ? handleDeleteReport : undefined}
             />
           )}
 

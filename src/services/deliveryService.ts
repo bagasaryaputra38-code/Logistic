@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -265,6 +266,18 @@ export async function saveDeliveryReport(
     return targetId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${targetId}`);
+  }
+}
+
+export async function deleteDeliveryReport(reportId: string): Promise<void> {
+  if (!VALIDATION_LIMITS.ID_REGEX.test(reportId) || reportId.length > VALIDATION_LIMITS.MAX_ID_LENGTH) {
+    throw new Error('ID laporan delivery tidak valid.');
+  }
+  const docRef = doc(db, COLLECTION_NAME, reportId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${reportId}`);
   }
 }
 

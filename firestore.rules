@@ -348,7 +348,7 @@ service cloud.firestore {
 
       allow update: if false;
 
-      allow delete: if false;
+      allow delete: if isAdmin() && isValidId(reportId);
     }
 
     match /surat_jalan/{entryId} {
