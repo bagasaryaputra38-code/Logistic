@@ -29,6 +29,7 @@ import {
   deleteDeliveryReport,
   saveDeliveryReport,
   subscribeSharedReports,
+  updateDeliveryReportDate,
 } from './services/deliveryService';
 import {
   buildDriverLogId,
@@ -76,6 +77,7 @@ import {
   OtpSecretRecord,
   SuratJalanEntry,
   SuratJalanFormState,
+  VALIDATION_LIMITS,
 } from './types/delivery';
 import { roundTon } from './utils/deliveryCalculations';
 
@@ -494,6 +496,42 @@ function MainApp() {
     } else {
       setLocalReports((prev) => prev.filter((item) => item.id !== report.id));
       showToast(`Data delivery tanggal ${report.date} dihapus dari pratinjau.`);
+    }
+  };
+
+  const handleUpdateReportDate = async (report: DeliveryReport, newDate: string) => {
+    if (user && !isAdmin) {
+      throw new Error('Hanya administrator yang memiliki izin untuk mengubah tanggal data delivery.');
+    }
+    if (!VALIDATION_LIMITS.DATE_REGEX.test(newDate)) {
+      throw new Error('Format tanggal baru harus YYYY-MM-DD.');
+    }
+    if (newDate === report.date) return;
+
+    if (reports.some((r) => r.id !== report.id && r.date === newDate)) {
+      throw new Error(
+        `Laporan tanggal ${newDate} sudah ada. Pilih tanggal lain atau hapus laporan tanggal tersebut terlebih dahulu.`
+      );
+    }
+
+    if (user && !report.isSample) {
+      await updateDeliveryReportDate(user.uid, report, newDate);
+      setSelectedDate(newDate);
+      showToast(`Tanggal data delivery diubah menjadi ${newDate}.`);
+    } else {
+      const updatedLocal: DeliveryReport = {
+        ...report,
+        id: `local_${newDate}`,
+        date: newDate,
+        monthKey: newDate.slice(0, 7),
+      };
+      setLocalReports((prev) =>
+        [updatedLocal, ...prev.filter((item) => item.id !== report.id)].sort((a, b) =>
+          b.date.localeCompare(a.date)
+        )
+      );
+      setSelectedDate(newDate);
+      showToast(`Tanggal data delivery diubah menjadi ${newDate} di mode pratinjau.`);
     }
   };
 
@@ -1077,6 +1115,7 @@ function MainApp() {
               isLoading={isLoadingData}
               isAdmin={isAdmin}
               onDeleteReport={isAdmin ? handleDeleteReport : undefined}
+              onEditReportDate={isAdmin ? handleUpdateReportDate : undefined}
             />
           )}
 
@@ -1101,6 +1140,7 @@ function MainApp() {
               onNewReport={openNewInput}
               isAdmin={isAdmin}
               onDeleteReport={isAdmin ? handleDeleteReport : undefined}
+              onEditReportDate={isAdmin ? handleUpdateReportDate : undefined}
             />
           )}
 

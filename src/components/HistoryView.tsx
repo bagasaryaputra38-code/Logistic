@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Calendar,
   Download,
   Eye,
   FileSpreadsheet,
@@ -11,7 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { DeliveryReport, MONTHLY_TARGET_TON } from '../types/delivery';
+import { DeliveryReport, MONTHLY_TARGET_TON, VALIDATION_LIMITS } from '../types/delivery';
 import {
   computeDailyTotals,
   exportReportsToCsv,
@@ -31,6 +32,7 @@ interface HistoryViewProps {
   onNewReport: () => void;
   isAdmin?: boolean;
   onDeleteReport?: (report: DeliveryReport) => Promise<void>;
+  onEditReportDate?: (report: DeliveryReport, newDate: string) => Promise<void>;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
@@ -39,6 +41,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   onNewReport,
   isAdmin = false,
   onDeleteReport,
+  onEditReportDate,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -47,7 +50,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [pendingEditDate, setPendingEditDate] = useState<DeliveryReport | null>(null);
+  const [newDateInput, setNewDateInput] = useState<string>('');
+  const [isUpdatingDate, setIsUpdatingDate] = useState(false);
+  const [editDateError, setEditDateError] = useState<string | null>(null);
+
   const canDelete = Boolean(isAdmin && onDeleteReport);
+  const canEditDate = Boolean(isAdmin && onEditReportDate);
+
+  const dateConflictReport = useMemo(() => {
+    if (!pendingEditDate || !VALIDATION_LIMITS.DATE_REGEX.test(newDateInput)) return null;
+    if (newDateInput === pendingEditDate.date) return null;
+    return reports.find((r) => r.id !== pendingEditDate.id && r.date === newDateInput) ?? null;
+  }, [pendingEditDate, newDateInput, reports]);
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete || !onDeleteReport) return;
@@ -60,6 +75,36 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       setDeleteError(err instanceof Error ? err.message : 'Gagal menghapus data delivery.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmEditDate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingEditDate || !onEditReportDate) return;
+    if (!VALIDATION_LIMITS.DATE_REGEX.test(newDateInput)) {
+      setEditDateError('Format tanggal baru tidak valid.');
+      return;
+    }
+    if (newDateInput === pendingEditDate.date) {
+      setEditDateError('Pilih tanggal yang berbeda dari tanggal saat ini.');
+      return;
+    }
+    if (dateConflictReport) {
+      setEditDateError(
+        `Laporan tanggal ${newDateInput} sudah ada. Pilih tanggal lain atau hapus laporan tanggal tersebut terlebih dahulu.`
+      );
+      return;
+    }
+
+    setIsUpdatingDate(true);
+    setEditDateError(null);
+    try {
+      await onEditReportDate(pendingEditDate, newDateInput);
+      setPendingEditDate(null);
+    } catch (err) {
+      setEditDateError(err instanceof Error ? err.message : 'Gagal mengubah tanggal data delivery.');
+    } finally {
+      setIsUpdatingDate(false);
     }
   };
 
@@ -475,7 +520,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   <th className="py-3 px-4 text-right">MTD SMG</th>
                   <th className="py-3 px-4 text-right">Total JKT &amp; SMG</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-5 text-right">{canDelete ? 'Aksi' : 'Lihat'}</th>
+                  <th className="py-3 px-5 text-right">{canDelete || canEditDate ? 'Aksi' : 'Lihat'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-sm">
@@ -535,6 +580,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                             <Eye className="w-3.5 h-3.5" />
                             Lihat
                           </button>
+                          {canEditDate && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditDateError(null);
+                                setNewDateInput(r.date);
+                                setPendingEditDate(r);
+                              }}
+                              title="Edit Tanggal Data Delivery (Khusus Administrator)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors cursor-pointer"
+                            >
+                              <Calendar className="w-3.5 h-3.5" />
+                              Edit Tanggal
+                            </button>
+                          )}
                           {canDelete && (
                             <button
                               type="button"
@@ -655,6 +715,120 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Delivery Report Date (Admin Only) */}
+      {canEditDate && pendingEditDate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="history-edit-date-title"
+        >
+          <form
+            onSubmit={(e) => void handleConfirmEditDate(e)}
+            className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="history-edit-date-title" className="text-base font-bold text-slate-900">
+                    Edit Tanggal Data Delivery
+                  </h3>
+                  <p className="text-xs text-slate-500">Khusus Administrator</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isUpdatingDate}
+                onClick={() => setPendingEditDate(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-1.5 text-xs">
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-500">Tanggal Saat Ini</span>
+                <span className="font-semibold text-slate-900">
+                  {formatIndonesianDate(pendingEditDate.date)} ({pendingEditDate.date})
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-500">Total Harian (JKT &amp; SMG)</span>
+                <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                  {formatNumber(computeDailyTotals(pendingEditDate).combined)} Ton
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="history-new-date" className="block text-xs font-semibold text-slate-700">
+                Tanggal Baru
+              </label>
+              <input
+                id="history-new-date"
+                type="date"
+                required
+                disabled={isUpdatingDate}
+                value={newDateInput}
+                onChange={(e) => {
+                  setNewDateInput(e.target.value);
+                  setEditDateError(null);
+                }}
+                className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
+              />
+              {VALIDATION_LIMITS.DATE_REGEX.test(newDateInput) && (
+                <p className="text-xs text-slate-600 font-medium">
+                  {formatIndonesianDate(newDateInput)}
+                </p>
+              )}
+            </div>
+
+            {dateConflictReport && (
+              <div className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                Laporan tanggal {newDateInput} sudah ada. Pilih tanggal lain atau hapus laporan
+                tanggal tersebut terlebih dahulu.
+              </div>
+            )}
+
+            {editDateError && !dateConflictReport && (
+              <div className="text-xs text-red-700 font-medium">{editDateError}</div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={
+                  isUpdatingDate ||
+                  !VALIDATION_LIMITS.DATE_REGEX.test(newDateInput) ||
+                  newDateInput === pendingEditDate.date ||
+                  Boolean(dateConflictReport)
+                }
+                className="flex-1 h-10 inline-flex items-center justify-center gap-2 px-4 bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {isUpdatingDate ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Calendar className="w-4 h-4" />
+                )}
+                {isUpdatingDate ? 'Menyimpan...' : 'Simpan Tanggal Baru'}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingDate}
+                onClick={() => setPendingEditDate(null)}
+                className="h-10 px-4 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

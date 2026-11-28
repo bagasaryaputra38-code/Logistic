@@ -3,11 +3,15 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import {
@@ -278,6 +282,110 @@ export async function deleteDeliveryReport(reportId: string): Promise<void> {
     await deleteDoc(docRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${reportId}`);
+  }
+}
+
+export async function updateDeliveryReportDate(
+  uid: string,
+  report: DeliveryReport,
+  newDate: string
+): Promise<string> {
+  if (!VALIDATION_LIMITS.ID_REGEX.test(uid) || uid.length > VALIDATION_LIMITS.MAX_ID_LENGTH) {
+    throw new Error('UID pengguna tidak valid.');
+  }
+  if (!VALIDATION_LIMITS.ID_REGEX.test(report.id) || report.id.length > VALIDATION_LIMITS.MAX_ID_LENGTH) {
+    throw new Error('ID laporan delivery tidak valid.');
+  }
+  if (!VALIDATION_LIMITS.DATE_REGEX.test(newDate)) {
+    throw new Error('Format tanggal baru harus YYYY-MM-DD.');
+  }
+
+  const newMonthKey = newDate.slice(0, 7);
+  if (!VALIDATION_LIMITS.MONTH_REGEX.test(newMonthKey)) {
+    throw new Error('Format bulan tidak valid.');
+  }
+
+  if (newDate === report.date) {
+    return report.id;
+  }
+
+  const targetId = buildSharedReportId(newDate);
+  const targetDocRef = doc(db, COLLECTION_NAME, targetId);
+
+  try {
+    const [targetSnap, sameDateSnap] = await Promise.all([
+      getDoc(targetDocRef),
+      getDocs(query(collection(db, COLLECTION_NAME), where('date', '==', newDate))),
+    ]);
+
+    const conflictById = targetSnap.exists() && targetSnap.id !== report.id;
+    const conflictByDate = sameDateSnap.docs.some((d) => d.id !== report.id);
+
+    if (conflictById || conflictByDate) {
+      throw new Error(
+        `Laporan tanggal ${newDate} sudah ada. Pilih tanggal lain atau hapus laporan tanggal tersebut terlebih dahulu.`
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('sudah ada')) {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.GET, `${COLLECTION_NAME}/${targetId}`);
+  }
+
+  if (targetId === report.id) {
+    try {
+      await updateDoc(doc(db, COLLECTION_NAME, report.id), {
+        date: newDate,
+        monthKey: newMonthKey,
+        updatedAt: serverTimestamp(),
+      });
+      return report.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${report.id}`);
+    }
+  }
+
+  const payload = sanitizeDeliveryPayload(uid, {
+    date: newDate,
+    dailyJktTotal: report.dailyJktTotal,
+    dailySmgTotal: report.dailySmgTotal,
+    jktProjectForming: report.jktProjectForming,
+    jktIndustri: report.jktIndustri,
+    jktIsbsRitel: report.jktIsbsRitel,
+    jktOthers: report.jktOthers,
+    smgProjectForming: report.smgProjectForming,
+    smgIndustri: report.smgIndustri,
+    smgIsbsRitel: report.smgIsbsRitel,
+    smgOthers: report.smgOthers,
+    mtdMode: report.mtdMode,
+    mtdJktProjectForming: report.mtdJktProjectForming,
+    mtdJktIndustri: report.mtdJktIndustri,
+    mtdJktIsbsRitel: report.mtdJktIsbsRitel,
+    mtdJktOthers: report.mtdJktOthers,
+    mtdSmgProjectForming: report.mtdSmgProjectForming,
+    mtdSmgIndustri: report.mtdSmgIndustri,
+    mtdSmgIsbsRitel: report.mtdSmgIsbsRitel,
+    mtdSmgOthers: report.mtdSmgOthers,
+    mtdJktTotal: report.mtdJktTotal,
+    mtdSmgTotal: report.mtdSmgTotal,
+    mtdCombinedTotal: report.mtdCombinedTotal,
+    notes: report.notes,
+  });
+
+  const batch = writeBatch(db);
+  batch.set(targetDocRef, {
+    ...payload,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.delete(doc(db, COLLECTION_NAME, report.id));
+
+  try {
+    await batch.commit();
+    return targetId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${COLLECTION_NAME}/${targetId}`);
   }
 }
 

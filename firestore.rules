@@ -346,7 +346,13 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
 
-      allow update: if false;
+      allow update: if isAdmin() &&
+        isValidId(reportId) &&
+        isValidDeliveryReport(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['date', 'monthKey', 'updatedAt']);
 
       allow delete: if isAdmin() && isValidId(reportId);
     }
