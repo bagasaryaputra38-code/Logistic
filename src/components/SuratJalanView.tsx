@@ -31,7 +31,10 @@ import {
   syncSuratJalanBatchToGoogleSheet,
   syncSuratJalanToGoogleSheet,
 } from '../services/googleSheetsService';
-import { getNextSuratJalanNoForDate } from '../services/suratJalanService';
+import {
+  getNextSuratJalanNoForDate,
+  normalizeSuratJalanNoDo,
+} from '../services/suratJalanService';
 import {
   SURAT_JALAN_DOKUMEN_OPTIONS,
   SURAT_JALAN_VENDORS,
@@ -58,6 +61,22 @@ interface DraftSuratJalanItem {
 
 interface DraftSuratJalanWithNo extends DraftSuratJalanItem {
   previewNo: number;
+}
+
+interface DuplicateDoMatch {
+  source: 'Draft' | 'Database Cloud' | 'Google Spreadsheet';
+  tanggal: string;
+  no: number;
+  noDO: string;
+  vendorLabel: string;
+}
+
+function formatVendorLabel(vendor: string, customVendor?: string): string {
+  return vendor === 'Lainnya' && customVendor ? `${vendor} (${customVendor})` : vendor;
+}
+
+function formatDuplicateDoMessage(dup: DuplicateDoMatch): string {
+  return `No Delivery Order "${dup.noDO}" sudah terdaftar di ${dup.source} (Tanggal ${formatIndonesianShortDate(dup.tanggal)}, No. ${dup.no}, Vendor ${dup.vendorLabel}). Input ganda tidak diperbolehkan.`;
 }
 
 interface SuratJalanViewProps {
@@ -203,6 +222,100 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
     return getNextSuratJalanNoForDate(combined, tanggal);
   }, [entries, sheetRows, draftsWithPreviewNo, tanggal, editingDraftId]);
 
+  const cloudDoMap = useMemo(() => {
+    const map = new Map<string, DuplicateDoMatch>();
+    entries.forEach((e) => {
+      const key = normalizeSuratJalanNoDo(e.noDO);
+      if (key && !map.has(key)) {
+        map.set(key, {
+          source: 'Database Cloud',
+          tanggal: e.tanggal,
+          no: e.no,
+          noDO: e.noDO,
+          vendorLabel: formatVendorLabel(e.vendor, e.customVendor),
+        });
+      }
+    });
+    return map;
+  }, [entries]);
+
+  const sheetDoMap = useMemo(() => {
+    const map = new Map<string, DuplicateDoMatch>();
+    sheetRows.forEach((r) => {
+      const key = normalizeSuratJalanNoDo(r.noDO);
+      if (key && !map.has(key)) {
+        map.set(key, {
+          source: 'Google Spreadsheet',
+          tanggal: r.tanggal,
+          no: r.no,
+          noDO: r.noDO,
+          vendorLabel: formatVendorLabel(r.vendor, r.customVendor),
+        });
+      }
+    });
+    return map;
+  }, [sheetRows]);
+
+  const findDuplicateDo = (
+    candidateNoDo: string,
+    excludeDraftId?: string | null
+  ): DuplicateDoMatch | null => {
+    const key = normalizeSuratJalanNoDo(candidateNoDo);
+    if (!key) return null;
+
+    const draftDup = draftsWithPreviewNo.find(
+      (d) => d.draftId !== excludeDraftId && normalizeSuratJalanNoDo(d.noDO) === key
+    );
+    if (draftDup) {
+      return {
+        source: 'Draft',
+        tanggal: draftDup.tanggal,
+        no: draftDup.previewNo,
+        noDO: draftDup.noDO,
+        vendorLabel: formatVendorLabel(draftDup.vendor, draftDup.customVendor),
+      };
+    }
+
+    return cloudDoMap.get(key) ?? sheetDoMap.get(key) ?? null;
+  };
+
+  const duplicateMatch = useMemo(
+    () => findDuplicateDo(noDO, editingDraftId),
+    [noDO, editingDraftId, draftsWithPreviewNo, cloudDoMap, sheetDoMap]
+  );
+
+  const draftDuplicateConflicts = useMemo(() => {
+    const conflicts = new Map<string, DuplicateDoMatch>();
+    const seenDraftMap = new Map<string, DraftSuratJalanWithNo>();
+
+    draftsWithPreviewNo.forEach((item) => {
+      const key = normalizeSuratJalanNoDo(item.noDO);
+      if (!key) return;
+
+      const cloudOrSheetDup = cloudDoMap.get(key) ?? sheetDoMap.get(key);
+      if (cloudOrSheetDup) {
+        conflicts.set(item.draftId, cloudOrSheetDup);
+        return;
+      }
+
+      const earlierDraft = seenDraftMap.get(key);
+      if (earlierDraft) {
+        conflicts.set(item.draftId, {
+          source: 'Draft',
+          tanggal: earlierDraft.tanggal,
+          no: earlierDraft.previewNo,
+          noDO: earlierDraft.noDO,
+          vendorLabel: formatVendorLabel(earlierDraft.vendor, earlierDraft.customVendor),
+        });
+        return;
+      }
+
+      seenDraftMap.set(key, item);
+    });
+
+    return conflicts;
+  }, [draftsWithPreviewNo, cloudDoMap, sheetDoMap]);
+
   useEffect(() => {
     const unsub = subscribeSheetsTokenStatus((hasToken) => {
       setHasSheetsToken(hasToken);
@@ -344,18 +457,14 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
     const validForm = validateCurrentForm();
     if (!validForm || !validForm.vendor) return;
 
-    const cleanKey = `${validForm.tanggal}__${validForm.noDO.toLowerCase()}`;
-    const duplicateInDraft = drafts.find(
-      (d) =>
-        d.draftId !== editingDraftId &&
-        `${d.tanggal}__${d.noDO.trim().toLowerCase()}` === cleanKey
-    );
-    if (duplicateInDraft) {
+    const dupMatch = findDuplicateDo(validForm.noDO, editingDraftId);
+    if (dupMatch) {
       setStatusMsg({
         type: 'err',
-        text: `No DO "${validForm.noDO}" untuk tanggal ${validForm.tanggal} sudah ada di daftar Draft.`,
+        text: formatDuplicateDoMessage(dupMatch),
       });
       noDoInputRef.current?.focus();
+      noDoInputRef.current?.select();
       return;
     }
 
@@ -412,6 +521,16 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
     setSheetsError(null);
     const validForm = validateCurrentForm();
     if (!validForm) return;
+    const dupMatch = findDuplicateDo(validForm.noDO, null);
+    if (dupMatch) {
+      setStatusMsg({
+        type: 'err',
+        text: formatDuplicateDoMessage(dupMatch),
+      });
+      noDoInputRef.current?.focus();
+      noDoInputRef.current?.select();
+      return;
+    }
     setPendingConfirmForm(validForm);
   };
 
@@ -442,6 +561,22 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
         setSheetRows(latestSheetRows);
       } catch {
         // Keep existing cache if transient read fails
+      }
+
+      const targetKey = normalizeSuratJalanNoDo(formToSave.noDO);
+      const dupInSheet = latestSheetRows.find(
+        (r) => normalizeSuratJalanNoDo(r.noDO) === targetKey
+      );
+      if (dupInSheet) {
+        throw new Error(
+          formatDuplicateDoMessage({
+            source: 'Google Spreadsheet',
+            tanggal: dupInSheet.tanggal,
+            no: dupInSheet.no,
+            noDO: dupInSheet.noDO,
+            vendorLabel: formatVendorLabel(dupInSheet.vendor, dupInSheet.customVendor),
+          })
+        );
       }
 
       const minNextNoFromSheet = getNextSuratJalanNoForDate(latestSheetRows, formToSave.tanggal);
@@ -526,6 +661,29 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
         setSheetRows(latestSheetRows);
       } catch {
         // Keep cached sheetRows if transient fetch fails
+      }
+
+      const latestSheetMap = new Map<string, ParsedSheetSuratJalanRow>();
+      latestSheetRows.forEach((r) => {
+        const key = normalizeSuratJalanNoDo(r.noDO);
+        if (key && !latestSheetMap.has(key)) {
+          latestSheetMap.set(key, r);
+        }
+      });
+
+      for (const item of batchItems) {
+        const dupRow = latestSheetMap.get(normalizeSuratJalanNoDo(item.noDO));
+        if (dupRow) {
+          throw new Error(
+            formatDuplicateDoMessage({
+              source: 'Google Spreadsheet',
+              tanggal: dupRow.tanggal,
+              no: dupRow.no,
+              noDO: dupRow.noDO,
+              vendorLabel: formatVendorLabel(dupRow.vendor, dupRow.customVendor),
+            })
+          );
+        }
       }
 
       const minNextNoByDate = new Map<string, number>();
@@ -860,9 +1018,16 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="sj-nodo" className="block text-xs font-semibold text-slate-700">
-                No Delivery Order
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="sj-nodo" className="block text-xs font-semibold text-slate-700">
+                  No Delivery Order
+                </label>
+                {duplicateMatch && (
+                  <span className="text-[11px] font-semibold text-red-700">
+                    DO Sudah Terdaftar
+                  </span>
+                )}
+              </div>
               <input
                 ref={noDoInputRef}
                 id="sj-nodo"
@@ -872,9 +1037,27 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
                 autoComplete="off"
                 placeholder="Scan atau ketik nomor DO lalu Enter..."
                 value={noDO}
-                onChange={(e) => setNoDO(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-mono text-slate-900 focus:border-blue-600 focus:outline-none"
+                onChange={(e) => {
+                  setNoDO(e.target.value);
+                  if (statusMsg?.type === 'err') {
+                    setStatusMsg(null);
+                  }
+                }}
+                className={`w-full h-11 px-3.5 rounded-lg border text-sm font-mono focus:outline-none ${
+                  duplicateMatch
+                    ? 'border-red-500 bg-red-50/50 text-red-900 focus:border-red-600'
+                    : 'border-slate-300 bg-white text-slate-900 focus:border-blue-600'
+                }`}
               />
+              {duplicateMatch && (
+                <div
+                  role="alert"
+                  className="rounded-lg px-3 py-2 text-xs font-medium flex items-start gap-2 bg-red-50 border border-red-200 text-red-800"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                  <span>{formatDuplicateDoMessage(duplicateMatch)}</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -1054,6 +1237,14 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
                   onClick={() => {
                     setStatusMsg(null);
                     setSheetsError(null);
+                    if (draftDuplicateConflicts.size > 0) {
+                      const firstConflict = Array.from(draftDuplicateConflicts.values())[0];
+                      setStatusMsg({
+                        type: 'err',
+                        text: formatDuplicateDoMessage(firstConflict),
+                      });
+                      return;
+                    }
                     setPendingConfirmBatch(draftsWithPreviewNo);
                   }}
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 bg-blue-700 text-white text-xs font-semibold rounded-lg hover:bg-blue-800 disabled:opacity-60 transition-colors cursor-pointer whitespace-nowrap"
@@ -1064,6 +1255,17 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
               </div>
             )}
           </div>
+
+          {draftDuplicateConflicts.size > 0 && (
+            <div className="mx-5 mt-4 rounded-lg px-3.5 py-2.5 text-xs font-medium flex items-start gap-2 bg-red-50 border border-red-200 text-red-800">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+              <span>
+                Terdapat {draftDuplicateConflicts.size} No Delivery Order di Draft yang sudah
+                terdaftar sebelumnya. Ubah atau hapus item bertanda merah sebelum mengirim ke
+                Spreadsheet.
+              </span>
+            </div>
+          )}
 
           {draftsWithPreviewNo.length === 0 ? (
             <div className="px-6 py-14 text-center space-y-2">
@@ -1095,6 +1297,7 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
                 <tbody className="divide-y divide-slate-200 text-xs sm:text-sm">
                   {draftsWithPreviewNo.map((item) => {
                     const isEditingThis = editingDraftId === item.draftId;
+                    const conflict = draftDuplicateConflicts.get(item.draftId);
                     const displayVendor =
                       item.vendor === 'Lainnya' && item.customVendor
                         ? `${item.vendor} (${item.customVendor})`
@@ -1103,9 +1306,11 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
                       <tr
                         key={item.draftId}
                         className={
-                          isEditingThis
-                            ? 'bg-blue-50/70'
-                            : 'hover:bg-slate-50/80 transition-colors'
+                          conflict
+                            ? 'bg-red-50/70'
+                            : isEditingThis
+                              ? 'bg-blue-50/70'
+                              : 'hover:bg-slate-50/80 transition-colors'
                         }
                       >
                         <td className="py-3 px-4 whitespace-nowrap font-mono text-xs text-slate-700">
@@ -1115,7 +1320,13 @@ export const SuratJalanView: React.FC<SuratJalanViewProps> = ({
                           {item.previewNo}
                         </td>
                         <td className="py-3 px-4 font-mono font-medium text-slate-900">
-                          {item.noDO}
+                          <div>{item.noDO}</div>
+                          {conflict && (
+                            <div className="text-[11px] font-sans font-semibold text-red-700 mt-0.5">
+                              Duplikat di {conflict.source} (
+                              {formatIndonesianShortDate(conflict.tanggal)} · No. {conflict.no})
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-slate-700">{displayVendor}</td>
                         <td className="py-3 px-3 whitespace-nowrap">

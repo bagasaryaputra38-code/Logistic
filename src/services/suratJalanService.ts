@@ -9,7 +9,6 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -34,6 +33,10 @@ import {
 } from './googleSheetsService';
 
 const COLLECTION_NAME = 'surat_jalan';
+
+export function normalizeSuratJalanNoDo(noDO: string): string {
+  return (noDO || '').trim().toLowerCase();
+}
 
 function isValidVendor(v: string): v is SuratJalanVendor {
   return (SURAT_JALAN_VENDORS as readonly string[]).includes(v);
@@ -176,32 +179,54 @@ export async function saveSuratJalanEntry(
   existingEntry?: SuratJalanEntry | null,
   minNextNo?: number
 ): Promise<{ id: string; no: number }> {
-  let assignedNo: number;
-
-  if (
+  let assignedNo: number | null =
     existingEntry &&
     !existingEntry.isLocal &&
     existingEntry.tanggal === form.tanggal &&
     typeof existingEntry.no === 'number' &&
     existingEntry.no >= 1
-  ) {
-    assignedNo = existingEntry.no;
-  } else {
-    try {
-      const sameDateQ = query(
-        collection(db, COLLECTION_NAME),
-        where('tanggal', '==', form.tanggal)
-      );
-      const snap = await getDocs(sameDateQ);
-      const existingForDate = snap.docs.map((docSnap) => ({
-        tanggal: String(docSnap.data().tanggal || form.tanggal),
-        no: Number(docSnap.data().no) || 0,
-      }));
-      const cloudNext = getNextSuratJalanNoForDate(existingForDate, form.tanggal);
-      assignedNo = Math.max(cloudNext, minNextNo ?? 1);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      ? existingEntry.no
+      : null;
+
+  const targetKey = normalizeSuratJalanNoDo(form.noDO);
+  if (!targetKey) {
+    throw new Error('No Delivery Order wajib diisi.');
+  }
+
+  let existingForDate: Array<{ tanggal: string; no: number }> = [];
+  try {
+    const allSnap = await getDocs(collection(db, COLLECTION_NAME));
+    const excludeId = existingEntry && !existingEntry.isLocal ? existingEntry.id : null;
+
+    for (const docSnap of allSnap.docs) {
+      const data = docSnap.data();
+      const docTanggal = String(data.tanggal || '');
+      const docNo = Number(data.no) || 0;
+      const docNoDo = String(data.noDO || '');
+
+      if (docSnap.id !== excludeId && normalizeSuratJalanNoDo(docNoDo) === targetKey) {
+        throw new Error(
+          `No Delivery Order "${form.noDO.trim()}" sudah terdaftar di database (Tanggal ${docTanggal}, No. ${docNo}). Input ganda tidak diperbolehkan.`
+        );
+      }
+
+      if (docTanggal === form.tanggal) {
+        existingForDate.push({
+          tanggal: docTanggal,
+          no: docNo,
+        });
+      }
     }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Input ganda tidak diperbolehkan')) {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+  }
+
+  if (assignedNo === null) {
+    const cloudNext = getNextSuratJalanNoForDate(existingForDate, form.tanggal);
+    assignedNo = Math.max(cloudNext, minNextNo ?? 1);
   }
 
   const payload = sanitizeSuratJalanPayload(uid, assignedNo, form);
@@ -252,27 +277,67 @@ export async function saveSuratJalanBatch(
 > {
   if (items.length === 0) return [];
 
+  const batchSeenKeys = new Set<string>();
+  for (const item of items) {
+    const key = normalizeSuratJalanNoDo(item.noDO);
+    if (!key) {
+      throw new Error('No Delivery Order wajib diisi pada seluruh item Draft.');
+    }
+    if (batchSeenKeys.has(key)) {
+      throw new Error(
+        `Terdapat No Delivery Order ganda di dalam Draft ("${item.noDO.trim()}"). Hapus atau ubah salah satu terlebih dahulu.`
+      );
+    }
+    batchSeenKeys.add(key);
+  }
+
   const uniqueDates = Array.from(new Set(items.map((item) => item.tanggal)));
   const nextNoMap = new Map<string, number>();
 
   try {
-    await Promise.all(
-      uniqueDates.map(async (tanggal) => {
-        const sameDateQ = query(
-          collection(db, COLLECTION_NAME),
-          where('tanggal', '==', tanggal)
+    const allSnap = await getDocs(collection(db, COLLECTION_NAME));
+    const existingByDate = new Map<string, Array<{ tanggal: string; no: number }>>();
+    const existingNoDoMap = new Map<string, { tanggal: string; no: number; noDO: string }>();
+
+    allSnap.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const docTanggal = String(data.tanggal || '');
+      const docNo = Number(data.no) || 0;
+      const docNoDo = String(data.noDO || '');
+      const key = normalizeSuratJalanNoDo(docNoDo);
+
+      if (key && !existingNoDoMap.has(key)) {
+        existingNoDoMap.set(key, { tanggal: docTanggal, no: docNo, noDO: docNoDo });
+      }
+      if (uniqueDates.includes(docTanggal)) {
+        const list = existingByDate.get(docTanggal) ?? [];
+        list.push({ tanggal: docTanggal, no: docNo });
+        existingByDate.set(docTanggal, list);
+      }
+    });
+
+    for (const item of items) {
+      const dup = existingNoDoMap.get(normalizeSuratJalanNoDo(item.noDO));
+      if (dup) {
+        throw new Error(
+          `No Delivery Order "${item.noDO.trim()}" sudah terdaftar di database (Tanggal ${dup.tanggal}, No. ${dup.no}). Input ganda tidak diperbolehkan.`
         );
-        const snap = await getDocs(sameDateQ);
-        const existingForDate = snap.docs.map((docSnap) => ({
-          tanggal: String(docSnap.data().tanggal || tanggal),
-          no: Number(docSnap.data().no) || 0,
-        }));
-        const cloudNext = getNextSuratJalanNoForDate(existingForDate, tanggal);
-        const sheetMin = minNextNoByDate?.get(tanggal) ?? 1;
-        nextNoMap.set(tanggal, Math.max(cloudNext, sheetMin));
-      })
-    );
+      }
+    }
+
+    uniqueDates.forEach((tanggal) => {
+      const cloudNext = getNextSuratJalanNoForDate(existingByDate.get(tanggal) ?? [], tanggal);
+      const sheetMin = minNextNoByDate?.get(tanggal) ?? 1;
+      nextNoMap.set(tanggal, Math.max(cloudNext, sheetMin));
+    });
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('Input ganda tidak diperbolehkan') ||
+        error.message.includes('No Delivery Order'))
+    ) {
+      throw error;
+    }
     handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
   }
 
@@ -418,15 +483,15 @@ export async function importSuratJalanBatch(
   existingEntries: SuratJalanEntry[]
 ): Promise<{ importedCount: number; skippedCount: number }> {
   const existingKeys = new Set(
-    existingEntries.map((e) => `${e.tanggal}__${e.noDO.trim().toLowerCase()}`)
+    existingEntries.map((e) => normalizeSuratJalanNoDo(e.noDO))
   );
 
   const uniqueNewRows: ParsedSheetSuratJalanRow[] = [];
   let skippedCount = 0;
 
   rowsToImport.forEach((row) => {
-    const key = `${row.tanggal}__${row.noDO.trim().toLowerCase()}`;
-    if (existingKeys.has(key)) {
+    const key = normalizeSuratJalanNoDo(row.noDO);
+    if (!key || existingKeys.has(key)) {
       skippedCount += 1;
       return;
     }

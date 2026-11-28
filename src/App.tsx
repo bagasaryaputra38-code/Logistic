@@ -56,6 +56,7 @@ import {
 } from './services/otpService';
 import {
   getNextSuratJalanNoForDate,
+  normalizeSuratJalanNoDo,
   sanitizeSuratJalanPayload,
   saveSuratJalanBatch,
   saveSuratJalanEntry,
@@ -496,6 +497,16 @@ function MainApp() {
       );
       return saved;
     } else {
+      const targetKey = normalizeSuratJalanNoDo(form.noDO);
+      const duplicateLocal = localSuratJalan.find(
+        (item) =>
+          item.id !== existing?.id && normalizeSuratJalanNoDo(item.noDO) === targetKey
+      );
+      if (duplicateLocal) {
+        throw new Error(
+          `No Delivery Order "${form.noDO.trim()}" sudah terdaftar di database (Tanggal ${duplicateLocal.tanggal}, No. ${duplicateLocal.no}). Input ganda tidak diperbolehkan.`
+        );
+      }
       const nowMs = Date.now();
       const entryId =
         existing?.id || `local_sj_${nowMs}_${Math.random().toString(36).slice(2, 7)}`;
@@ -536,6 +547,30 @@ function MainApp() {
       const savedList = await saveSuratJalanBatch(user.uid, items, minNextNoByDate);
       showToast(`${savedList.length} data Surat Jalan dari Draft tersimpan ke Cloud.`);
       return savedList;
+    }
+
+    const batchKeys = new Set<string>();
+    const existingLocalMap = new Map(
+      localSuratJalan.map((item) => [normalizeSuratJalanNoDo(item.noDO), item])
+    );
+
+    for (const item of items) {
+      const key = normalizeSuratJalanNoDo(item.noDO);
+      if (!key) {
+        throw new Error('No Delivery Order wajib diisi pada seluruh item Draft.');
+      }
+      if (batchKeys.has(key)) {
+        throw new Error(
+          `Terdapat No Delivery Order ganda di dalam Draft ("${item.noDO.trim()}"). Hapus atau ubah salah satu terlebih dahulu.`
+        );
+      }
+      const dupLocal = existingLocalMap.get(key);
+      if (dupLocal) {
+        throw new Error(
+          `No Delivery Order "${item.noDO.trim()}" sudah terdaftar di database (Tanggal ${dupLocal.tanggal}, No. ${dupLocal.no}). Input ganda tidak diperbolehkan.`
+        );
+      }
+      batchKeys.add(key);
     }
 
     const nowMs = Date.now();
